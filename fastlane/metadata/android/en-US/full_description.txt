@@ -1,0 +1,19 @@
+GPXIT helps cyclists who plan one-way bike routes and need to take a train home. Import your GPX route, and the app discovers train stations along your path. When you're ready to head home, it shows you the best options: which station to ride to, how long you'll wait, and when you'll arrive home.
+
+Features:
+- Import GPX routes (share from Komoot or any cycling app)
+- Automatic discovery of train stations along your route
+- "Take me home" — see all upcoming stations with cycling time, wait time, and connections
+- Search for nearby stations anywhere on the map
+- Detailed connection info with intermediate stops and changes
+- Navigate to any station via your preferred map app
+- Download map tiles for offline use
+- Configurable transport types (regional trains, S-Bahn, U-Bahn, tram, bus, ferry)
+- Optional ICE/IC/EC long-distance connections
+- Transit data via Deutsche Bahn (covers German and international connections)
+
+Privacy:
+- No tracking, no analytics, no accounts
+- All data stays on your device
+- Location is only used to show your position on the map
+- Internet is used only for map tiles (OpenStreetMap) and transit queries (Deutsche Bahn)

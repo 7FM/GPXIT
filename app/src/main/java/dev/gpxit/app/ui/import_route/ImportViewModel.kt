@@ -1,0 +1,138 @@
+package dev.gpxit.app.ui.import_route
+
+import android.app.Application
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import dev.gpxit.app.data.RouteStorage
+import dev.gpxit.app.data.gpx.GpxParser
+import dev.gpxit.app.data.prefs.PrefsRepository
+import dev.gpxit.app.data.transit.TransitRepository
+import dev.gpxit.app.domain.RouteInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class ImportViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val transitRepository = TransitRepository()
+    private val prefsRepository = PrefsRepository(application)
+    private val routeStorage = RouteStorage(application)
+
+    private val _uiState = MutableStateFlow(ImportUiState())
+    val uiState: StateFlow<ImportUiState> = _uiState
+
+    private val _routeInfo = MutableStateFlow<RouteInfo?>(null)
+    val routeInfo: StateFlow<RouteInfo?> = _routeInfo
+
+    init {
+        // Restore previously saved route on startup
+        if (routeStorage.hasRoute()) {
+            viewModelScope.launch {
+                try {
+                    val route = withContext(Dispatchers.IO) {
+                        routeStorage.loadGpxStream().use { GpxParser.parse(it) }
+                    }
+                    if (route.points.isNotEmpty()) {
+                        val stations = withContext(Dispatchers.IO) {
+                            routeStorage.loadStations()
+                        }
+                        val routeWithStations = route.copy(stations = stations)
+                        _routeInfo.value = routeWithStations
+                        _uiState.value = ImportUiState(
+                            routeName = route.name,
+                            pointCount = route.points.size,
+                            totalDistanceKm = route.totalDistanceMeters / 1000.0,
+                            stationCount = stations.size,
+                            stationDiscoveryStatus = "${stations.size} stations loaded"
+                        )
+                    }
+                } catch (_: Exception) {
+                    // Corrupted cache, ignore
+                }
+            }
+        }
+    }
+
+    fun importGpx(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            try {
+                val context = getApplication<Application>()
+
+                // Read raw bytes so we can save them to disk
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw IllegalArgumentException("Cannot open file")
+                }
+
+                val route = withContext(Dispatchers.IO) {
+                    bytes.inputStream().use { GpxParser.parse(it) }
+                }
+
+                if (route.points.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "No track points found in GPX file"
+                    )
+                    return@launch
+                }
+
+                // Save GPX to internal storage and clear old nearby stations
+                withContext(Dispatchers.IO) {
+                    routeStorage.saveGpx(bytes)
+                    routeStorage.clearNearbyStations()
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = true,
+                    routeName = route.name,
+                    pointCount = route.points.size,
+                    totalDistanceKm = route.totalDistanceMeters / 1000.0,
+                    stationDiscoveryStatus = "Discovering stations along route..."
+                )
+
+                // Precompute stations along the route
+                val prefs = prefsRepository.preferences.first()
+                val stations = transitRepository.discoverStationsAlongRoute(
+                    points = route.points,
+                    samplingIntervalMeters = prefs.samplingIntervalMeters,
+                    searchRadiusMeters = prefs.searchRadiusMeters,
+                    requiredProducts = prefs.enabledProducts
+                )
+
+                // Save stations to disk
+                withContext(Dispatchers.IO) {
+                    routeStorage.saveStations(stations)
+                }
+
+                val routeWithStations = route.copy(stations = stations)
+                _routeInfo.value = routeWithStations
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    stationCount = stations.size,
+                    stationDiscoveryStatus = "${stations.size} stations found"
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Import failed: ${e.message}"
+                )
+            }
+        }
+    }
+}
+
+data class ImportUiState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val routeName: String? = null,
+    val pointCount: Int = 0,
+    val totalDistanceKm: Double = 0.0,
+    val stationCount: Int = 0,
+    val stationDiscoveryStatus: String? = null
+)

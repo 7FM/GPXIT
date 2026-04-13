@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie
+    permissions:
+      contents: write
+    env:
+      ANDROID_HOME: /opt/android-sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build FOSS release APK (reproducible with F-Droid)
+        run: |
+          yes | sdkmanager --licenses 2>/dev/null || true
+          ./gradlew assembleFossRelease
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+
+      - name: Sign FOSS APK
+        run: |
+          BUILD_TOOLS=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
+          $BUILD_TOOLS/apksigner sign --ks keystore.jks --ks-key-alias ${{ secrets.KEY_ALIAS }} --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" --key-pass pass:"${{ secrets.KEY_PASSWORD }}" --out app-foss-release.apk app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
+
+      - name: Build and sign Full release APK
+        run: |
+          ./gradlew assembleFullRelease
+          BUILD_TOOLS=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
+          $BUILD_TOOLS/apksigner sign --ks keystore.jks --ks-key-alias ${{ secrets.KEY_ALIAS }} --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" --key-pass pass:"${{ secrets.KEY_PASSWORD }}" --out app-full-release.apk app/build/outputs/apk/full/release/app-full-release-unsigned.apk
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f keystore.jks
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            app-foss-release.apk
+            app-full-release.apk
+          generate_release_notes: true
