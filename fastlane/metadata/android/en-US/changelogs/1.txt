@@ -1,0 +1,8 @@
+Initial release:
+- GPX route import
+- Train station discovery along routes
+- "Take me home" decision view
+- Connection details with intermediate stops
+- Offline map tile download
+- Nearby station search
+- Configurable transport types and wait times
