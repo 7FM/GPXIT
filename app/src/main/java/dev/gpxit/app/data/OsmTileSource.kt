@@ -5,8 +5,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
 import org.osmdroid.util.MapTileIndex
 
 /**
- * Shared OSM tile source used by both the map display and the tile downloader.
- * Same as MAPNIK but with a permissive policy that allows bulk download.
+ * Standard OSM tile source (light mode).
  */
 val OsmTileSource = object : OnlineTileSourceBase(
     "Mapnik",
@@ -17,7 +16,7 @@ val OsmTileSource = object : OnlineTileSourceBase(
         "https://c.tile.openstreetmap.org/"
     ),
     "© OpenStreetMap contributors",
-    TileSourcePolicy(2, 0) // max 2 concurrent, allows bulk download
+    TileSourcePolicy(2, 0)
 ) {
     override fun getTileURLString(pMapTileIndex: Long): String {
         val zoom = MapTileIndex.getZoom(pMapTileIndex)
@@ -26,3 +25,29 @@ val OsmTileSource = object : OnlineTileSourceBase(
         return "$baseUrl$zoom/$x/$y$mImageFilenameEnding"
     }
 }
+
+/**
+ * CartoDB Dark Matter tile source (dark mode).
+ * Free, no API key required. Attribution: © OpenStreetMap contributors, © CARTO
+ */
+val DarkOsmTileSource = object : OnlineTileSourceBase(
+    "CartoDB_Dark",
+    0, 19, 256, ".png",
+    arrayOf(
+        "https://a.basemaps.cartocdn.com/",
+        "https://b.basemaps.cartocdn.com/",
+        "https://c.basemaps.cartocdn.com/",
+        "https://d.basemaps.cartocdn.com/"
+    ),
+    "© OpenStreetMap contributors, © CARTO",
+    TileSourcePolicy(2, 0)
+) {
+    override fun getTileURLString(pMapTileIndex: Long): String {
+        val zoom = MapTileIndex.getZoom(pMapTileIndex)
+        val x = MapTileIndex.getX(pMapTileIndex)
+        val y = MapTileIndex.getY(pMapTileIndex)
+        return "${baseUrl}dark_all/$zoom/$x/$y$mImageFilenameEnding"
+    }
+}
+
+fun getActiveTileSource(useDark: Boolean) = if (useDark) DarkOsmTileSource else OsmTileSource

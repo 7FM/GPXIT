@@ -17,7 +17,9 @@ data class TripLeg(
     val arrivalStation: String,
     val arrivalTime: Instant,
     val intermediateStops: List<TripStop> = emptyList(),
-    val isWalk: Boolean = false
+    val isWalk: Boolean = false,
+    val departureDelayMinutes: Int? = null, // null = unknown, 0 = on time
+    val arrivalDelayMinutes: Int? = null
 )
 
 data class TrainConnection(

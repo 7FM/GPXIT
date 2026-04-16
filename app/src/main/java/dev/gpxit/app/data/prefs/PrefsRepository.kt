@@ -1,6 +1,7 @@
 package dev.gpxit.app.data.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -26,6 +27,7 @@ class PrefsRepository(private val context: Context) {
         val CONNECTION_PRODUCTS = stringSetPreferencesKey("connection_products")
         val MIN_WAIT_BUFFER_MINUTES = intPreferencesKey("min_wait_buffer_minutes")
         val MAX_WAIT_MINUTES = intPreferencesKey("max_wait_minutes")
+        val USE_DARK_MAP = booleanPreferencesKey("use_dark_map")
 
         val DEFAULT_PRODUCTS = setOf("HIGH_SPEED_TRAIN", "REGIONAL_TRAIN", "SUBURBAN_TRAIN")
         val DEFAULT_CONNECTION_PRODUCTS = setOf(
@@ -44,7 +46,8 @@ class PrefsRepository(private val context: Context) {
         val enabledProducts: Set<String> = DEFAULT_PRODUCTS,
         val connectionProducts: Set<String> = DEFAULT_CONNECTION_PRODUCTS,
         val minWaitBufferMinutes: Int = 0,
-        val maxWaitMinutes: Int = 0  // 0 = no limit
+        val maxWaitMinutes: Int = 0,  // 0 = no limit
+        val useDarkMap: Boolean = false
     )
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -59,7 +62,8 @@ class PrefsRepository(private val context: Context) {
             enabledProducts = prefs[ENABLED_PRODUCTS] ?: DEFAULT_PRODUCTS,
             connectionProducts = prefs[CONNECTION_PRODUCTS] ?: DEFAULT_CONNECTION_PRODUCTS,
             minWaitBufferMinutes = prefs[MIN_WAIT_BUFFER_MINUTES] ?: 0,
-            maxWaitMinutes = prefs[MAX_WAIT_MINUTES] ?: 0
+            maxWaitMinutes = prefs[MAX_WAIT_MINUTES] ?: 0,
+            useDarkMap = prefs[USE_DARK_MAP] ?: false
         )
     }
 
@@ -98,5 +102,9 @@ class PrefsRepository(private val context: Context) {
 
     suspend fun setMaxWaitMinutes(minutes: Int) {
         context.dataStore.edit { it[MAX_WAIT_MINUTES] = minutes }
+    }
+
+    suspend fun setUseDarkMap(use: Boolean) {
+        context.dataStore.edit { it[USE_DARK_MAP] = use }
     }
 }

@@ -119,14 +119,26 @@ fun ConnectionRow(
                     } else {
                         val lineLabel = leg.line ?: "?"
                         val dirLabel = leg.direction?.let { " \u2192 $it" } ?: ""
-                        Text(
-                            text = "$lineLabel$dirLabel",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 2.dp)
-                        )
+                        val depDelayStr = leg.departureDelayMinutes?.let { d ->
+                            if (d > 0) " +${d}'" else if (d == 0) "" else ""
+                        } ?: ""
+                        Row {
+                            Text(
+                                text = "$lineLabel$dirLabel",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+                            if (depDelayStr.isNotEmpty()) {
+                                Text(
+                                    text = "  $depDelayStr",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
 
-                        // Use monospace-style alignment for stop times
                         Text(
                             text = "${timeFormatter.format(leg.departureTime)}  ${leg.departureStation}",
                             style = MaterialTheme.typography.bodySmall,
@@ -144,11 +156,23 @@ fun ConnectionRow(
                             )
                         }
 
-                        Text(
-                            text = "${timeFormatter.format(leg.arrivalTime)}  ${leg.arrivalStation}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium
-                        )
+                        val arrDelayStr = leg.arrivalDelayMinutes?.let { d ->
+                            if (d > 0) "  +${d}'" else ""
+                        } ?: ""
+                        Row {
+                            Text(
+                                text = "${timeFormatter.format(leg.arrivalTime)}  ${leg.arrivalStation}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (arrDelayStr.isNotEmpty()) {
+                                Text(
+                                    text = arrDelayStr,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(top = 8.dp))

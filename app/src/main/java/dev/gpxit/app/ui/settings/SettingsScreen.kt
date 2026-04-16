@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -57,6 +58,7 @@ fun SettingsScreen(
     onToggleConnectionProduct: (String) -> Unit,
     onSetMinWaitBuffer: (Int) -> Unit,
     onSetMaxWaitMinutes: (Int) -> Unit,
+    onSetUseDarkMap: (Boolean) -> Unit,
     stationSuggestions: List<TransitRepository.StationSuggestion>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -246,6 +248,24 @@ fun SettingsScreen(
                 steps = 18,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Dark map tiles
+            Text("Map Appearance", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Dark map tiles", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = prefs.useDarkMap,
+                    onCheckedChange = { onSetUseDarkMap(it) }
+                )
+            }
         }
     }
 }

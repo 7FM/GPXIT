@@ -249,6 +249,7 @@ fun GpxitApp(
                     onNavigateToSettings = { navController.navigate("settings") },
                     onDownloadOfflineMap = { scope.launch { triggerDownload(routeInfo, mapTileDownloader) { downloadState = it } } },
                     downloadState = downloadState,
+                    useDarkMap = prefs.useDarkMap,
                     onStationClick = { station ->
                         highlightedStation = station
                         // Query connections for this single station
@@ -402,6 +403,7 @@ fun GpxitApp(
                     onToggleConnectionProduct = { settingsViewModel.toggleConnectionProduct(it) },
                     onSetMinWaitBuffer = { settingsViewModel.setMinWaitBuffer(it) },
                     onSetMaxWaitMinutes = { settingsViewModel.setMaxWaitMinutes(it) },
+                    onSetUseDarkMap = { settingsViewModel.setUseDarkMap(it) },
                     stationSuggestions = suggestions,
                     onBack = { navController.popBackStack() }
                 )

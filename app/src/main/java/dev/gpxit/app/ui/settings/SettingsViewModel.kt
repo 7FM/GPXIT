@@ -77,6 +77,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setMaxWaitMinutes(minutes) }
     }
 
+    fun setUseDarkMap(use: Boolean) {
+        viewModelScope.launch { prefsRepository.setUseDarkMap(use) }
+    }
+
     fun toggleConnectionProduct(product: String) {
         viewModelScope.launch {
             val current = preferences.value.connectionProducts

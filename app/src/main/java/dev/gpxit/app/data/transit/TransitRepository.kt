@@ -111,6 +111,8 @@ class TransitRepository {
                                 departureTime = stop.getDepartureTime(true)?.toInstant()
                             )
                         } ?: emptyList()
+                        val depDelay = leg.getDepartureDelay()?.let { (it / 60).toInt() }
+                        val arrDelay = leg.getArrivalDelay()?.let { (it / 60).toInt() }
                         TripLeg(
                             line = leg.line?.label,
                             direction = leg.destination?.name,
@@ -118,7 +120,9 @@ class TransitRepository {
                             departureTime = legDep,
                             arrivalStation = leg.arrivalStop?.location?.name ?: leg.arrival?.name ?: "?",
                             arrivalTime = legArr,
-                            intermediateStops = stops
+                            intermediateStops = stops,
+                            departureDelayMinutes = depDelay,
+                            arrivalDelayMinutes = arrDelay
                         )
                     }
                     is de.schildbach.pte.dto.Trip.Individual -> {

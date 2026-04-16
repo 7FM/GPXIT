@@ -66,6 +66,7 @@ fun MapScreen(
     onNavigateToSettings: () -> Unit,
     onDownloadOfflineMap: () -> Unit,
     downloadState: dev.gpxit.app.GpxitDownloadState,
+    useDarkMap: Boolean = false,
     onSearchNearby: (center: GeoPoint, radiusMeters: Int) -> Unit,
     onClearNearbyStations: () -> Unit,
     onStationClick: (StationCandidate) -> Unit,
@@ -178,17 +179,19 @@ fun MapScreen(
             }
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+        Box(modifier = Modifier.weight(1f)) {
             OsmMapView(
                 routeInfo = routeInfo,
                 userLocation = userLocation,
                 homeStationLocation = homeStationLocation,
                 highlightedStation = highlightedStation,
                 nearbyStations = nearbyStations,
+                useDarkMap = useDarkMap,
                 mapCommand = mapCommand,
                 onMapCommandHandled = { mapCommand = MapCommand.NONE },
                 zoomToStation = zoomToStation,
@@ -337,6 +340,16 @@ fun MapScreen(
                 )
             }
         }
+
+        // Elevation profile
+        val route = routeInfo
+        if (route != null && route.points.any { it.elevation != null }) {
+            ElevationProfile(
+                routeInfo = route,
+                stations = route.stations
+            )
+        }
+        } // end Column
     }
 
     // Station info bottom sheet

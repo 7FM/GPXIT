@@ -267,6 +267,7 @@ fun OsmMapView(
     homeStationLocation: GeoPoint?,
     highlightedStation: StationCandidate?,
     nearbyStations: List<StationCandidate>,
+    useDarkMap: Boolean = false,
     mapCommand: MapCommand,
     onMapCommandHandled: () -> Unit,
     zoomToStation: StationCandidate? = null,
@@ -301,7 +302,7 @@ fun OsmMapView(
 
     val mapView = remember {
         MapView(context).apply {
-            setTileSource(OsmTileSource)
+            setTileSource(dev.gpxit.app.data.getActiveTileSource(useDarkMap))
             setMultiTouchControls(true)
             setBuiltInZoomControls(false)
             isHorizontalMapRepetitionEnabled = false
@@ -337,6 +338,12 @@ fun OsmMapView(
             }
             overlays.add(scaleBarOverlay)
         }
+    }
+
+    // Switch tile source when dark mode changes
+    LaunchedEffect(useDarkMap) {
+        mapView.setTileSource(dev.gpxit.app.data.getActiveTileSource(useDarkMap))
+        mapView.invalidate()
     }
 
     // Lifecycle
