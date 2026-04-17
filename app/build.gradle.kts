@@ -80,4 +80,7 @@ dependencies {
 
     // Google Play Services location — only for full flavor
     "fullImplementation"(libs.play.services.location)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test.junit)
 }

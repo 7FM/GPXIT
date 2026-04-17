@@ -297,7 +297,7 @@ class TransitRepository {
  * sit within [proximityMeters] of each other; the one with the shortest name
  * wins.
  */
-private fun clusterStations(
+internal fun clusterStations(
     stations: List<StationCandidate>,
     proximityMeters: Double = 400.0
 ): List<StationCandidate> {
@@ -323,7 +323,7 @@ private fun clusterStations(
 }
 
 /** True if `a` equals `b`, or one is a prefix of the other up to a word boundary. */
-private fun namesRelated(a: String, b: String): Boolean {
+internal fun namesRelated(a: String, b: String): Boolean {
     if (a == b) return true
     val (shorter, longer) = if (a.length < b.length) a to b else b to a
     if (!longer.startsWith(shorter)) return false
@@ -332,7 +332,7 @@ private fun namesRelated(a: String, b: String): Boolean {
 }
 
 /** Normalize a station name to its comparable base form. */
-private fun String.stationNameBase(): String =
+internal fun String.stationNameBase(): String =
     this.replace(Regex("\\s*\\([^)]*\\)"), "")   // drop parentheticals: " (Vorplatz)"
         .replace(Regex(",.*"), "")                 // drop trailing ", City"
         .trim()

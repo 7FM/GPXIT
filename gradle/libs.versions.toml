@@ -25,6 +25,10 @@ gpx-parser = { group = "com.github.ticofab", name = "android-gpx-parser", versio
 public-transport-enabler = { group = "com.github.schildbach", name = "public-transport-enabler", version = "master-SNAPSHOT" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version = "21.3.0" }
 
+# Test-only
+junit = { group = "junit", name = "junit", version = "4.13.2" }
+kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
