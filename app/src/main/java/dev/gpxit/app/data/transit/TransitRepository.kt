@@ -39,7 +39,7 @@ class TransitRepository {
             maxDistanceMeters,
             maxLocations
         )
-        result.locations?.mapNotNull { loc ->
+        val raw = result.locations?.mapNotNull { loc ->
             val locId = loc.id ?: return@mapNotNull null
             val locCoord = loc.coord ?: return@mapNotNull null
             val stationProducts = loc.products?.map { it.name }?.toSet() ?: emptySet()
@@ -59,6 +59,8 @@ class TransitRepository {
                 products = stationProducts
             )
         } ?: emptyList()
+        // Collapse platform-child siblings so the map stays readable.
+        clusterStations(raw)
     }
 
     suspend fun queryConnections(
@@ -218,9 +220,12 @@ class TransitRepository {
         val deferredResults = samplePoints.map { samplePoint ->
             async {
                 try {
+                    // Fetch a large per-sample batch so train stations aren't
+                    // crowded out by nearby tram/bus stops in dense urban areas
+                    // (e.g. Mannheim Hbf sits in a cluster of ~50+ stops).
                     findNearbyStations(
                         samplePoint.lat, samplePoint.lon,
-                        searchRadiusMeters, 10,
+                        searchRadiusMeters, 100,
                         requiredProducts
                     )
                 } catch (_: Exception) {
@@ -237,7 +242,7 @@ class TransitRepository {
             .map { (_, candidates) -> candidates.minBy { it.distanceFromRouteMeters } }
 
         // For each station, find the closest route point and use its distanceFromStart
-        deduped.map { station ->
+        val withRouteDistance = deduped.map { station ->
             val closestRoutePoint = points.minBy { pt ->
                 haversineMeters(station.lat, station.lon, pt.lat, pt.lon)
             }
@@ -248,7 +253,10 @@ class TransitRepository {
                     closestRoutePoint.lat, closestRoutePoint.lon
                 )
             )
-        }.sortedBy { it.distanceAlongRouteMeters }
+        }
+        // Cluster across samples too: neighbouring sample batches may each
+        // have kept a different "child" of the same hub.
+        clusterStations(withRouteDistance).sortedBy { it.distanceAlongRouteMeters }
     }
 
     /**
@@ -279,3 +287,53 @@ class TransitRepository {
             }
         }
 }
+
+/**
+ * Collapse "platform-child" stations around a real hub so the map isn't
+ * cluttered. Near major hubs the DB API returns the Hbf plus many siblings
+ * ("… Gleis 3", "… Vorplatz", bus islands under the same product set) that
+ * mean the same stop to a cyclist. Two stations are treated as the same
+ * cluster when their names have a word-boundary prefix relationship AND they
+ * sit within [proximityMeters] of each other; the one with the shortest name
+ * wins.
+ */
+private fun clusterStations(
+    stations: List<StationCandidate>,
+    proximityMeters: Double = 400.0
+): List<StationCandidate> {
+    if (stations.size <= 1) return stations
+    val sorted = stations.sortedBy { it.name.length }
+    val kept = ArrayList<StationCandidate>(sorted.size)
+    for (st in sorted) {
+        val base = st.name.stationNameBase()
+        if (base.isEmpty()) {
+            kept += st
+            continue
+        }
+        val absorbed = kept.any { existing ->
+            val eb = existing.name.stationNameBase()
+            if (eb.isEmpty()) return@any false
+            val related = namesRelated(base, eb)
+            if (!related) return@any false
+            haversineMeters(st.lat, st.lon, existing.lat, existing.lon) < proximityMeters
+        }
+        if (!absorbed) kept += st
+    }
+    return kept
+}
+
+/** True if `a` equals `b`, or one is a prefix of the other up to a word boundary. */
+private fun namesRelated(a: String, b: String): Boolean {
+    if (a == b) return true
+    val (shorter, longer) = if (a.length < b.length) a to b else b to a
+    if (!longer.startsWith(shorter)) return false
+    val nextCh = longer.getOrNull(shorter.length) ?: return true
+    return nextCh == ' ' || nextCh == ',' || nextCh == '(' || nextCh == '-' || nextCh == '/'
+}
+
+/** Normalize a station name to its comparable base form. */
+private fun String.stationNameBase(): String =
+    this.replace(Regex("\\s*\\([^)]*\\)"), "")   // drop parentheticals: " (Vorplatz)"
+        .replace(Regex(",.*"), "")                 // drop trailing ", City"
+        .trim()
+        .lowercase()
