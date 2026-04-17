@@ -95,6 +95,10 @@ fun MapScreen(
     onStationClick: (StationCandidate) -> Unit,
     onLoadMoreConnections: (() -> Unit)?,
     onDismissStationInfo: () -> Unit,
+    tripTrackingEnabled: Boolean = true,
+    tripTrackingActive: Boolean = false,
+    onStartTripTracking: () -> Unit = {},
+    onStopTripTracking: () -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -191,6 +195,39 @@ fun MapScreen(
                     IconButton(onClick = onBack) { Text("<") }
                 },
                 actions = {
+                    // Trip-tracking toggle — only rendered when (a) the
+                    // feature is allowed in Settings and (b) a route is
+                    // loaded, since tracking without a route is meaningless.
+                    if (tripTrackingEnabled && routeInfo != null) {
+                        IconButton(
+                            onClick = {
+                                if (tripTrackingActive) onStopTripTracking()
+                                else onStartTripTracking()
+                            }
+                        ) {
+                            Canvas(modifier = Modifier.size(22.dp)) {
+                                val cx = size.width / 2f
+                                val cy = size.height / 2f
+                                val r = size.width / 2.4f
+                                if (tripTrackingActive) {
+                                    // Filled red dot = tracking ON.
+                                    drawCircle(
+                                        Color(0xFFD32F2F),
+                                        radius = r,
+                                        center = Offset(cx, cy)
+                                    )
+                                } else {
+                                    // Hollow circle = tracking OFF.
+                                    drawCircle(
+                                        Color.DarkGray,
+                                        radius = r,
+                                        center = Offset(cx, cy),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (downloadState.active) {
                         Column(
                             modifier = Modifier.padding(end = 8.dp),

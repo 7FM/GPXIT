@@ -36,6 +36,7 @@ class PrefsRepository(private val context: Context) {
         val MAX_STATIONS_TO_CHECK = intPreferencesKey("max_stations_to_check")
         val POI_DB_LAST_UPDATE_MS = longPreferencesKey("poi_db_last_update_ms")
         val POI_DB_AUTO_UPDATE = booleanPreferencesKey("poi_db_auto_update")
+        val TRIP_TRACKING_ENABLED = booleanPreferencesKey("trip_tracking_enabled")
 
         val DEFAULT_PRODUCTS = setOf("HIGH_SPEED_TRAIN", "REGIONAL_TRAIN", "SUBURBAN_TRAIN")
         val DEFAULT_CONNECTION_PRODUCTS = setOf(
@@ -64,7 +65,14 @@ class PrefsRepository(private val context: Context) {
         /** Epoch ms of the last successful POI database download; 0 if none. */
         val poiDbLastUpdateMs: Long = 0L,
         /** Auto-refresh the POI DB once it's older than 30 days. */
-        val poiDbAutoUpdate: Boolean = true
+        val poiDbAutoUpdate: Boolean = true,
+        /**
+         * Master switch for the trip-tracking foreground service. When
+         * off the "Start tracking" button is hidden, so the user has no
+         * way to spin up the service — also a belt-and-braces promise
+         * that location isn't collected in the background.
+         */
+        val tripTrackingEnabled: Boolean = true
     )
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -87,7 +95,8 @@ class PrefsRepository(private val context: Context) {
             poiToilet = prefs[POI_TOILET] ?: false,
             maxStationsToCheck = prefs[MAX_STATIONS_TO_CHECK] ?: 8,
             poiDbLastUpdateMs = prefs[POI_DB_LAST_UPDATE_MS] ?: 0L,
-            poiDbAutoUpdate = prefs[POI_DB_AUTO_UPDATE] ?: true
+            poiDbAutoUpdate = prefs[POI_DB_AUTO_UPDATE] ?: true,
+            tripTrackingEnabled = prefs[TRIP_TRACKING_ENABLED] ?: true
         )
     }
 
@@ -158,5 +167,9 @@ class PrefsRepository(private val context: Context) {
 
     suspend fun setPoiDbAutoUpdate(enabled: Boolean) {
         context.dataStore.edit { it[POI_DB_AUTO_UPDATE] = enabled }
+    }
+
+    suspend fun setTripTrackingEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[TRIP_TRACKING_ENABLED] = enabled }
     }
 }

@@ -116,14 +116,22 @@ fun GpxitApp(
     }
 
     LaunchedEffect(Unit) {
-        if (!hasLocationPermission) {
-            permissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
+        val needed = buildList {
+            if (!hasLocationPermission) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+            // On API 33+ we need a runtime grant for foreground-service
+            // notifications. Request it up front so the trip-tracking
+            // notification actually renders on the first run.
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted) add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
+        if (needed.isNotEmpty()) permissionLauncher.launch(needed.toTypedArray())
     }
 
     // GPS location
@@ -151,6 +159,9 @@ fun GpxitApp(
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
     // POI dataset download state (shared with Settings for the manual button).
     var poiDbState by remember { mutableStateOf(GpxitDownloadState()) }
+    // Trip-tracking service state — observed from the service's own flow.
+    val tripTrackingState by dev.gpxit.app.data.tracking.TripTrackingService.state
+        .collectAsState()
 
     // Drive the POI dataset download — fires when the DB is missing OR
     // when the last successful update was more than 30 days ago and the
@@ -174,13 +185,12 @@ fun GpxitApp(
     }
 
     LaunchedEffect(Unit) {
-        val prefs = prefsRepository.preferences.first()
+        val p = prefsRepository.preferences.first()
         val now = System.currentTimeMillis()
         val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
-        val stale = prefs.poiDbLastUpdateMs > 0 &&
-            now - prefs.poiDbLastUpdateMs > thirtyDaysMs
+        val stale = p.poiDbLastUpdateMs > 0 && now - p.poiDbLastUpdateMs > thirtyDaysMs
         val shouldDownload = !poiDatabase.isAvailable() ||
-            (prefs.poiDbAutoUpdate && stale)
+            (p.poiDbAutoUpdate && stale)
         if (shouldDownload) triggerPoiDbDownload()
     }
 
@@ -201,6 +211,16 @@ fun GpxitApp(
 
     // Resolve home station coords if missing
     val prefs by settingsViewModel.preferences.collectAsState()
+
+    // If the user flips the master tracking switch off while the service
+    // is live, stop it immediately so we aren't holding GPS against
+    // their preference.
+    LaunchedEffect(prefs.tripTrackingEnabled, tripTrackingState.isActive) {
+        if (!prefs.tripTrackingEnabled && tripTrackingState.isActive) {
+            dev.gpxit.app.data.tracking.TripTrackingService.stop(context)
+        }
+    }
+
     LaunchedEffect(prefs.homeStationId, prefs.homeStationLat) {
         val id = prefs.homeStationId
         val name = prefs.homeStationName
@@ -430,6 +450,14 @@ fun GpxitApp(
                         selectedStationInfo = null
                         isLoadingStationInfo = false
                     },
+                    tripTrackingEnabled = prefs.tripTrackingEnabled,
+                    tripTrackingActive = tripTrackingState.isActive,
+                    onStartTripTracking = {
+                        dev.gpxit.app.data.tracking.TripTrackingService.start(context)
+                    },
+                    onStopTripTracking = {
+                        dev.gpxit.app.data.tracking.TripTrackingService.stop(context)
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -480,6 +508,7 @@ fun GpxitApp(
                     onUpdatePoiDb = triggerPoiDbDownload,
                     poiDbDownloadState = poiDbState,
                     poiDbAvailable = poiDatabase.isAvailable(),
+                    onSetTripTrackingEnabled = { settingsViewModel.setTripTrackingEnabled(it) },
                     stationSuggestions = suggestions,
                     onBack = { navController.popBackStack() }
                 )

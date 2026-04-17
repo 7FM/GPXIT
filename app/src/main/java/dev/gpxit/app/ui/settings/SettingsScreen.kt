@@ -67,6 +67,7 @@ fun SettingsScreen(
     onUpdatePoiDb: () -> Unit,
     poiDbDownloadState: dev.gpxit.app.GpxitDownloadState,
     poiDbAvailable: Boolean,
+    onSetTripTrackingEnabled: (Boolean) -> Unit,
     stationSuggestions: List<TransitRepository.StationSuggestion>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -331,6 +332,35 @@ fun SettingsScreen(
                 Switch(
                     checked = prefs.showElevationGraph,
                     onCheckedChange = { onSetShowElevationGraph(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Trip tracking — master switch for the foreground GPS service.
+            // Disabling it hides the start button on the map so the service
+            // can't be spun up at all.
+            Text("Trip tracking", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Allow background GPS tracking",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Enables the \"Start tracking\" button on the map. " +
+                            "Tracking is still started manually.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = prefs.tripTrackingEnabled,
+                    onCheckedChange = { onSetTripTrackingEnabled(it) }
                 )
             }
 

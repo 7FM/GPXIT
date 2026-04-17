@@ -105,6 +105,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setPoiDbAutoUpdate(enabled) }
     }
 
+    fun setTripTrackingEnabled(enabled: Boolean) {
+        viewModelScope.launch { prefsRepository.setTripTrackingEnabled(enabled) }
+    }
+
     fun toggleConnectionProduct(product: String) {
         viewModelScope.launch {
             val current = preferences.value.connectionProducts
