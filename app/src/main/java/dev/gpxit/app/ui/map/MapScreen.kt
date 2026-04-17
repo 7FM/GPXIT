@@ -83,7 +83,7 @@ fun MapScreen(
     showElevationGraph: Boolean = true,
     stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
     routePois: List<dev.gpxit.app.domain.Poi> = emptyList(),
-    poiRepository: dev.gpxit.app.data.poi.PoiRepository,
+    poiDatabase: dev.gpxit.app.data.poi.PoiDatabase,
     poiGrocery: Boolean = false,
     poiWater: Boolean = false,
     poiToilet: Boolean = false,
@@ -111,9 +111,10 @@ fun MapScreen(
     var viewportBounds by remember {
         mutableStateOf<Quadruple<Double, Double, Double, Double>?>(null)
     }
-    // Online-fetched POIs, used only when the offline cache (routePois) is empty.
-    var onlinePois by remember { mutableStateOf<List<dev.gpxit.app.domain.Poi>>(emptyList()) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // Viewport-scoped POIs read from the local SQLite dataset when the
+    // user pans outside the prefetched route corridor or before any
+    // import has happened.
+    var viewportPois by remember { mutableStateOf<List<dev.gpxit.app.domain.Poi>>(emptyList()) }
     val lastFetchKey = remember { mutableStateOf<String?>(null) }
 
     // Types enabled right now.
@@ -128,17 +129,18 @@ fun MapScreen(
         }
     }
 
-    // Online fallback: only runs when we don't have a prefetched cache.
+    // Local-DB viewport query — runs whenever the route cache is empty
+    // (no GPX imported yet, or the user panned off-corridor).
     androidx.compose.runtime.LaunchedEffect(
         viewportBounds, zoomLevel, enabledTypes, routePois.isEmpty()
     ) {
         if (routePois.isNotEmpty()) {
-            onlinePois = emptyList()
+            viewportPois = emptyList()
             return@LaunchedEffect
         }
         val bb = viewportBounds
         if (enabledTypes.isEmpty() || bb == null || zoomLevel < 13.0) {
-            onlinePois = emptyList()
+            viewportPois = emptyList()
             return@LaunchedEffect
         }
         val q = 0.01
@@ -149,20 +151,21 @@ fun MapScreen(
         val key = "$qs/$qn/$qw/$qe/${enabledTypes.joinToString(",")}"
         if (key == lastFetchKey.value) return@LaunchedEffect
         lastFetchKey.value = key
-        kotlinx.coroutines.delay(400)
+        // Small debounce so we don't thrash the DB on every pan frame.
+        kotlinx.coroutines.delay(100)
         if (key != lastFetchKey.value) return@LaunchedEffect
-        onlinePois = poiRepository.fetchPois(
+        viewportPois = poiDatabase.queryByBbox(
             enabledTypes, bb.first, bb.second, bb.third, bb.fourth
         )
     }
 
-    // What we actually render: cached POIs filtered by viewport + enabled types
-    // when available; otherwise the online-fetched set (same filter).
+    // What we actually render: prefetched route POIs filtered by viewport
+    // when available; otherwise the DB-viewport query (already bbox-scoped).
     val pois: List<dev.gpxit.app.domain.Poi> = remember(
-        routePois, onlinePois, viewportBounds, enabledTypes
+        routePois, viewportPois, viewportBounds, enabledTypes
     ) {
         if (enabledTypes.isEmpty()) return@remember emptyList()
-        val source = if (routePois.isNotEmpty()) routePois else onlinePois
+        val source = if (routePois.isNotEmpty()) routePois else viewportPois
         val bb = viewportBounds
         source.filter { p ->
             p.type in enabledTypes &&

@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -61,6 +63,10 @@ fun SettingsScreen(
     onSetMaxWaitMinutes: (Int) -> Unit,
     onSetMaxStationsToCheck: (Int) -> Unit,
     onSetShowElevationGraph: (Boolean) -> Unit,
+    onSetPoiDbAutoUpdate: (Boolean) -> Unit,
+    onUpdatePoiDb: () -> Unit,
+    poiDbDownloadState: dev.gpxit.app.GpxitDownloadState,
+    poiDbAvailable: Boolean,
     stationSuggestions: List<TransitRepository.StationSuggestion>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -327,6 +333,64 @@ fun SettingsScreen(
                     onCheckedChange = { onSetShowElevationGraph(it) }
                 )
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // POI database — downloaded from GitHub Releases, rebuilt monthly
+            // by the build-poi-dataset workflow.
+            Text("POI database", style = MaterialTheme.typography.titleMedium)
+            val statusText = when {
+                poiDbDownloadState.active -> poiDbDownloadState.label
+                !poiDbAvailable -> "Not downloaded yet"
+                prefs.poiDbLastUpdateMs == 0L -> "Installed"
+                else -> "Updated " + formatRelativeDays(prefs.poiDbLastUpdateMs)
+            }
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            if (poiDbDownloadState.active || poiDbDownloadState.progress > 0f) {
+                LinearProgressIndicator(
+                    progress = { poiDbDownloadState.progress },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onUpdatePoiDb,
+                    enabled = !poiDbDownloadState.active
+                ) {
+                    Text(if (poiDbAvailable) "Update now" else "Download")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Auto-update monthly",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Switch(
+                        checked = prefs.poiDbAutoUpdate,
+                        onCheckedChange = { onSetPoiDbAutoUpdate(it) }
+                    )
+                }
+            }
         }
+    }
+}
+
+/** "today", "3 days ago", "12 days ago" — compact for the settings row. */
+private fun formatRelativeDays(epochMs: Long): String {
+    val nowMs = System.currentTimeMillis()
+    val days = ((nowMs - epochMs) / 86_400_000L).toInt()
+    return when {
+        days <= 0 -> "today"
+        days == 1 -> "yesterday"
+        else -> "$days days ago"
     }
 }

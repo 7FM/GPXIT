@@ -38,6 +38,7 @@ import dev.gpxit.app.ui.settings.SettingsViewModel
 import dev.gpxit.app.ui.theme.GpxitTheme
 import dev.gpxit.app.ui.theme.StatusBarProtection
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import java.time.Instant
@@ -94,7 +95,8 @@ fun GpxitApp(
     val scope = rememberCoroutineScope()
     val locationService = remember { LocationService(context) }
     val transitRepository = remember { TransitRepository() }
-    val poiRepository = remember { dev.gpxit.app.data.poi.PoiRepository() }
+    val poiDatabase = remember { dev.gpxit.app.data.poi.PoiDatabase(context) }
+    val poiDownloader = remember { dev.gpxit.app.data.poi.PoiDatasetDownloader(context) }
     val prefsRepository = remember { PrefsRepository(context) }
     val routeStorage = remember { dev.gpxit.app.data.RouteStorage(context) }
     val mapTileDownloader = remember { dev.gpxit.app.data.MapTileDownloader(context) }
@@ -147,6 +149,40 @@ fun GpxitApp(
 
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
+    // POI dataset download state (shared with Settings for the manual button).
+    var poiDbState by remember { mutableStateOf(GpxitDownloadState()) }
+
+    // Drive the POI dataset download — fires when the DB is missing OR
+    // when the last successful update was more than 30 days ago and the
+    // user has auto-update enabled. Manual updates from Settings go
+    // through the same lambda.
+    val triggerPoiDbDownload: () -> Unit = {
+        if (!poiDbState.active) {
+            scope.launch {
+                val ok = poiDownloader.download(poiDatabase) { p ->
+                    poiDbState = GpxitDownloadState(
+                        progress = p.fraction.coerceIn(0f, 1f),
+                        label = p.label,
+                        active = p.active
+                    )
+                }
+                if (ok) {
+                    prefsRepository.setPoiDbLastUpdate(System.currentTimeMillis())
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val prefs = prefsRepository.preferences.first()
+        val now = System.currentTimeMillis()
+        val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
+        val stale = prefs.poiDbLastUpdateMs > 0 &&
+            now - prefs.poiDbLastUpdateMs > thirtyDaysMs
+        val shouldDownload = !poiDatabase.isAvailable() ||
+            (prefs.poiDbAutoUpdate && stale)
+        if (shouldDownload) triggerPoiDbDownload()
+    }
 
     // Nearby search state — restored from disk, cleared on new route import
     var nearbyStations by remember { mutableStateOf(routeStorage.loadNearbyStations()) }
@@ -269,7 +305,7 @@ fun GpxitApp(
                     showElevationGraph = prefs.showElevationGraph,
                     stationLabels = stationLabels,
                     routePois = routePois,
-                    poiRepository = poiRepository,
+                    poiDatabase = poiDatabase,
                     poiGrocery = prefs.poiGrocery,
                     poiWater = prefs.poiWater,
                     poiToilet = prefs.poiToilet,
@@ -440,6 +476,10 @@ fun GpxitApp(
                     onSetMaxStationsToCheck = { settingsViewModel.setMaxStationsToCheck(it) },
                     onSetShowElevationGraph = { settingsViewModel.setShowElevationGraph(it) },
                     onSetElevationAwareTime = { settingsViewModel.setElevationAwareTime(it) },
+                    onSetPoiDbAutoUpdate = { settingsViewModel.setPoiDbAutoUpdate(it) },
+                    onUpdatePoiDb = triggerPoiDbDownload,
+                    poiDbDownloadState = poiDbState,
+                    poiDbAvailable = poiDatabase.isAvailable(),
                     stationSuggestions = suggestions,
                     onBack = { navController.popBackStack() }
                 )

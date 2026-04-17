@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -33,6 +34,8 @@ class PrefsRepository(private val context: Context) {
         val POI_WATER = booleanPreferencesKey("poi_water")
         val POI_TOILET = booleanPreferencesKey("poi_toilet")
         val MAX_STATIONS_TO_CHECK = intPreferencesKey("max_stations_to_check")
+        val POI_DB_LAST_UPDATE_MS = longPreferencesKey("poi_db_last_update_ms")
+        val POI_DB_AUTO_UPDATE = booleanPreferencesKey("poi_db_auto_update")
 
         val DEFAULT_PRODUCTS = setOf("HIGH_SPEED_TRAIN", "REGIONAL_TRAIN", "SUBURBAN_TRAIN")
         val DEFAULT_CONNECTION_PRODUCTS = setOf(
@@ -57,7 +60,11 @@ class PrefsRepository(private val context: Context) {
         val poiGrocery: Boolean = false,
         val poiWater: Boolean = false,
         val poiToilet: Boolean = false,
-        val maxStationsToCheck: Int = 8
+        val maxStationsToCheck: Int = 8,
+        /** Epoch ms of the last successful POI database download; 0 if none. */
+        val poiDbLastUpdateMs: Long = 0L,
+        /** Auto-refresh the POI DB once it's older than 30 days. */
+        val poiDbAutoUpdate: Boolean = true
     )
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -78,7 +85,9 @@ class PrefsRepository(private val context: Context) {
             poiGrocery = prefs[POI_GROCERY] ?: false,
             poiWater = prefs[POI_WATER] ?: false,
             poiToilet = prefs[POI_TOILET] ?: false,
-            maxStationsToCheck = prefs[MAX_STATIONS_TO_CHECK] ?: 8
+            maxStationsToCheck = prefs[MAX_STATIONS_TO_CHECK] ?: 8,
+            poiDbLastUpdateMs = prefs[POI_DB_LAST_UPDATE_MS] ?: 0L,
+            poiDbAutoUpdate = prefs[POI_DB_AUTO_UPDATE] ?: true
         )
     }
 
@@ -141,5 +150,13 @@ class PrefsRepository(private val context: Context) {
 
     suspend fun setMaxStationsToCheck(n: Int) {
         context.dataStore.edit { it[MAX_STATIONS_TO_CHECK] = n }
+    }
+
+    suspend fun setPoiDbLastUpdate(epochMs: Long) {
+        context.dataStore.edit { it[POI_DB_LAST_UPDATE_MS] = epochMs }
+    }
+
+    suspend fun setPoiDbAutoUpdate(enabled: Boolean) {
+        context.dataStore.edit { it[POI_DB_AUTO_UPDATE] = enabled }
     }
 }

@@ -101,6 +101,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setMaxStationsToCheck(n) }
     }
 
+    fun setPoiDbAutoUpdate(enabled: Boolean) {
+        viewModelScope.launch { prefsRepository.setPoiDbAutoUpdate(enabled) }
+    }
+
     fun toggleConnectionProduct(product: String) {
         viewModelScope.launch {
             val current = preferences.value.connectionProducts

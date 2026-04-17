@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.gpxit.app.data.RouteStorage
 import dev.gpxit.app.data.gpx.GpxParser
-import dev.gpxit.app.data.poi.PoiRepository
+import dev.gpxit.app.data.poi.PoiDatabase
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
 import dev.gpxit.app.domain.Poi
@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 class ImportViewModel(application: Application) : AndroidViewModel(application) {
 
     private val transitRepository = TransitRepository()
-    private val poiRepository = PoiRepository()
+    private val poiDatabase = PoiDatabase(application)
     private val prefsRepository = PrefsRepository(application)
     private val routeStorage = RouteStorage(application)
 
@@ -127,15 +127,22 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                 val routeWithStations = route.copy(stations = stations)
                 _routeInfo.value = routeWithStations
 
+                val dbAvailable = poiDatabase.isAvailable()
                 _uiState.value = _uiState.value.copy(
                     stationCount = stations.size,
-                    stationDiscoveryStatus = "${stations.size} stations found — discovering POIs\u2026"
+                    stationDiscoveryStatus = if (dbAvailable) {
+                        "${stations.size} stations found — extracting POIs\u2026"
+                    } else {
+                        "${stations.size} stations found"
+                    }
                 )
 
-                // Prefetch all POI types along the route so the map can serve
-                // them offline and layer toggles become instant.
+                // Pull POIs along the route from the local SQLite dataset.
+                // No network — if the DB hasn't been downloaded yet this is a
+                // no-op and the map layers stay empty until the user grabs
+                // the dataset from Settings.
                 val pois = try {
-                    poiRepository.fetchPoisForRoute(
+                    poiDatabase.queryForRoute(
                         points = route.points,
                         types = setOf(
                             PoiType.GROCERY,
@@ -155,8 +162,14 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     poiCount = pois.size,
-                    stationDiscoveryStatus =
-                        "${stations.size} stations, ${pois.size} POIs ready"
+                    stationDiscoveryStatus = when {
+                        !dbAvailable ->
+                            "${stations.size} stations — POI dataset not downloaded"
+                        pois.isEmpty() ->
+                            "${stations.size} stations, no POIs along route"
+                        else ->
+                            "${stations.size} stations, ${pois.size} POIs ready"
+                    }
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
