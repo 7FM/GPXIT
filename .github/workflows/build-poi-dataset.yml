@@ -42,10 +42,12 @@ jobs:
           ls -lh input.osm.pbf
 
       - name: Filter POI tags
-        # -R keeps each matched object AND the nodes referenced by matched
-        # ways, which we need so `osmium export` can produce geometries.
+        # Default behavior already includes nodes referenced by matched
+        # ways (which `osmium export` needs to resolve way geometries).
+        # -R/--omit-referenced would STRIP those nodes — the opposite of
+        # what we want — so we deliberately don't pass it.
         run: |
-          osmium tags-filter -R -O -o filtered.osm.pbf input.osm.pbf \
+          osmium tags-filter -O -o filtered.osm.pbf input.osm.pbf \
             'n/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry' \
             'w/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry' \
             'n/amenity=drinking_water,water_point,toilets' \
