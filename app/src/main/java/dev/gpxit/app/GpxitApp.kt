@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,6 +36,8 @@ import dev.gpxit.app.ui.map.MapScreen
 import dev.gpxit.app.ui.settings.SettingsScreen
 import dev.gpxit.app.ui.settings.SettingsViewModel
 import dev.gpxit.app.ui.theme.GpxitTheme
+import dev.gpxit.app.ui.theme.StatusBarProtection
+import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import java.time.Instant
@@ -175,6 +179,7 @@ fun GpxitApp(
     GpxitTheme {
         val navController = rememberNavController()
 
+        Box(modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = "import") {
             composable("import") {
                 val importRouteInfo by importViewModel.routeInfo.collectAsState()
@@ -439,6 +444,12 @@ fun GpxitApp(
                     onBack = { navController.popBackStack() }
                 )
             }
+        }
+
+            // Draw status-bar scrim on top so system icons stay legible.
+            // targetSdk 35 enforces edge-to-edge and ignores statusBarColor;
+            // this is the canonical per-Compose fix.
+            StatusBarProtection()
         }
     }
 }
