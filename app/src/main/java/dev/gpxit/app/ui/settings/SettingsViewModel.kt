@@ -77,6 +77,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setMaxWaitMinutes(minutes) }
     }
 
+    fun setElevationAwareTime(enabled: Boolean) {
+        viewModelScope.launch { prefsRepository.setElevationAwareTime(enabled) }
+    }
+
     fun setUseDarkMap(use: Boolean) {
         viewModelScope.launch { prefsRepository.setUseDarkMap(use) }
     }

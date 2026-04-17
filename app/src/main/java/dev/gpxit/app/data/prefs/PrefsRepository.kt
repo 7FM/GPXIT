@@ -28,6 +28,7 @@ class PrefsRepository(private val context: Context) {
         val MIN_WAIT_BUFFER_MINUTES = intPreferencesKey("min_wait_buffer_minutes")
         val MAX_WAIT_MINUTES = intPreferencesKey("max_wait_minutes")
         val USE_DARK_MAP = booleanPreferencesKey("use_dark_map")
+        val ELEVATION_AWARE_TIME = booleanPreferencesKey("elevation_aware_time")
 
         val DEFAULT_PRODUCTS = setOf("HIGH_SPEED_TRAIN", "REGIONAL_TRAIN", "SUBURBAN_TRAIN")
         val DEFAULT_CONNECTION_PRODUCTS = setOf(
@@ -47,7 +48,8 @@ class PrefsRepository(private val context: Context) {
         val connectionProducts: Set<String> = DEFAULT_CONNECTION_PRODUCTS,
         val minWaitBufferMinutes: Int = 0,
         val maxWaitMinutes: Int = 0,  // 0 = no limit
-        val useDarkMap: Boolean = false
+        val useDarkMap: Boolean = false,
+        val elevationAwareTime: Boolean = true
     )
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -63,7 +65,8 @@ class PrefsRepository(private val context: Context) {
             connectionProducts = prefs[CONNECTION_PRODUCTS] ?: DEFAULT_CONNECTION_PRODUCTS,
             minWaitBufferMinutes = prefs[MIN_WAIT_BUFFER_MINUTES] ?: 0,
             maxWaitMinutes = prefs[MAX_WAIT_MINUTES] ?: 0,
-            useDarkMap = prefs[USE_DARK_MAP] ?: false
+            useDarkMap = prefs[USE_DARK_MAP] ?: false,
+            elevationAwareTime = prefs[ELEVATION_AWARE_TIME] ?: true
         )
     }
 
@@ -106,5 +109,9 @@ class PrefsRepository(private val context: Context) {
 
     suspend fun setUseDarkMap(use: Boolean) {
         context.dataStore.edit { it[USE_DARK_MAP] = use }
+    }
+
+    suspend fun setElevationAwareTime(enabled: Boolean) {
+        context.dataStore.edit { it[ELEVATION_AWARE_TIME] = enabled }
     }
 }

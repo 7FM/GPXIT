@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.schildbach.pte.dto.Product
+import dev.gpxit.app.data.gpx.CyclingTimeEstimator
 import dev.gpxit.app.data.gpx.findClosestPointIndex
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
@@ -74,7 +75,6 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 val now = Instant.now()
-                val speedMs = prefs.avgSpeedKmh * 1000.0 / 3600.0 // m/s
                 val products = connectionProducts(prefs.connectionProducts)
 
                 // Limit to next 8 stations to keep query time reasonable
@@ -84,7 +84,17 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                 val options = stationsToQuery.map { station ->
                     async {
                         val distanceToRide = station.distanceAlongRouteMeters - currentDistanceAlongRoute
-                        val cyclingTimeMinutes = (distanceToRide / speedMs / 60.0).toInt()
+                        val cyclingTimeMinutes = if (prefs.elevationAwareTime) {
+                            CyclingTimeEstimator.estimateMinutesAlongRoute(
+                                routeInfo.points,
+                                currentDistanceAlongRoute,
+                                station.distanceAlongRouteMeters,
+                                prefs.avgSpeedKmh
+                            )
+                        } else {
+                            val speedMs = prefs.avgSpeedKmh * 1000.0 / 3600.0
+                            (distanceToRide / speedMs / 60.0).toInt()
+                        }
                         val arrivalAtStation = now.plusSeconds((cyclingTimeMinutes * 60).toLong())
 
                         val rawConnections = try {

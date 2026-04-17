@@ -56,6 +56,7 @@ fun SettingsScreen(
     onQueryChanged: (String) -> Unit,
     onToggleProduct: (String) -> Unit,
     onToggleConnectionProduct: (String) -> Unit,
+    onSetElevationAwareTime: (Boolean) -> Unit,
     onSetMinWaitBuffer: (Int) -> Unit,
     onSetMaxWaitMinutes: (Int) -> Unit,
     onSetUseDarkMap: (Boolean) -> Unit,
@@ -226,6 +227,27 @@ fun SettingsScreen(
                 steps = 24,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Elevation-aware time", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "Adjust speed for uphill/downhill",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = prefs.elevationAwareTime,
+                    onCheckedChange = { onSetElevationAwareTime(it) }
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

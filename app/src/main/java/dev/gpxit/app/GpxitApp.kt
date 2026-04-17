@@ -271,24 +271,32 @@ fun GpxitApp(
                                 val speedMs = prefs.avgSpeedKmh * 1000.0 / 3600.0
 
                                 var cyclingTimeMinutes = 0
-                                var distToRide = 0.0
                                 var arrivalAtStation = now
 
                                 if (loc != null) {
                                     if (route != null && station.distanceAlongRouteMeters > 0) {
-                                        // Station on route: use route distance
                                         val (closestIdx, _) = findClosestPointIndex(
                                             route.points, loc.latitude, loc.longitude
                                         )
                                         val currentDist = route.points[closestIdx].distanceFromStart
-                                        distToRide = (station.distanceAlongRouteMeters - currentDist).coerceAtLeast(0.0)
+                                        cyclingTimeMinutes = if (prefs.elevationAwareTime) {
+                                            dev.gpxit.app.data.gpx.CyclingTimeEstimator
+                                                .estimateMinutesAlongRoute(
+                                                    route.points, currentDist,
+                                                    station.distanceAlongRouteMeters,
+                                                    prefs.avgSpeedKmh
+                                                )
+                                        } else {
+                                            val dist = (station.distanceAlongRouteMeters - currentDist).coerceAtLeast(0.0)
+                                            (dist / speedMs / 60.0).toInt()
+                                        }
                                     } else {
-                                        // Nearby station (not on route): straight-line distance
-                                        distToRide = dev.gpxit.app.data.gpx.haversineMeters(
+                                        // Nearby station (not on route): straight-line, flat speed
+                                        val distToRide = dev.gpxit.app.data.gpx.haversineMeters(
                                             loc.latitude, loc.longitude, station.lat, station.lon
                                         )
+                                        cyclingTimeMinutes = (distToRide / speedMs / 60.0).toInt()
                                     }
-                                    cyclingTimeMinutes = (distToRide / speedMs / 60.0).toInt()
                                     arrivalAtStation = now.plusSeconds((cyclingTimeMinutes * 60).toLong())
                                 }
 
@@ -404,6 +412,7 @@ fun GpxitApp(
                     onSetMinWaitBuffer = { settingsViewModel.setMinWaitBuffer(it) },
                     onSetMaxWaitMinutes = { settingsViewModel.setMaxWaitMinutes(it) },
                     onSetUseDarkMap = { settingsViewModel.setUseDarkMap(it) },
+                    onSetElevationAwareTime = { settingsViewModel.setElevationAwareTime(it) },
                     stationSuggestions = suggestions,
                     onBack = { navController.popBackStack() }
                 )
