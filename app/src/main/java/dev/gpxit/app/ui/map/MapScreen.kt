@@ -290,6 +290,7 @@ fun MapScreen(
                 userLocation = userLocation,
                 homeStationLocation = homeStationLocation,
                 highlightedStation = highlightedStation,
+                destinationStationId = userDestinationStationId,
                 nearbyStations = nearbyStations,
                 previewPosition = previewPosition,
                 stationLabels = stationLabels,

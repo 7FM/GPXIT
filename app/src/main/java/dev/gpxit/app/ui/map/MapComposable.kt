@@ -434,6 +434,69 @@ private fun createNearbyMarkerBitmap(): Bitmap {
     return bmp
 }
 
+/**
+ * Larger green marker with a white star — drawn at the station the
+ * user has explicitly marked as their destination. Visually distinct
+ * from both the regular pink "T" station marker and the orange
+ * highlighted one so "this is where I'm going" is never ambiguous.
+ */
+private fun createDestinationMarkerBitmap(): Bitmap {
+    val width = 80
+    val height = 100
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val cx = width / 2f
+    val circleR = 32f
+    val circleY = circleR + 4f
+
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(70, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, circleY + 3f, circleR + 3f, shadowPaint)
+
+    // White border
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, circleY, circleR + 5f, borderPaint)
+
+    // Green fill
+    val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(46, 125, 50) // strong green
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, circleY, circleR, pinPaint)
+    val tail = android.graphics.Path().apply {
+        moveTo(cx - 18f, circleY + circleR - 6f)
+        lineTo(cx + 18f, circleY + circleR - 6f)
+        lineTo(cx, height.toFloat() - 2f)
+        close()
+    }
+    canvas.drawPath(tail, pinPaint)
+
+    // White 5-point star inside the circle.
+    val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    val starPath = android.graphics.Path()
+    val outerR = circleR * 0.70f
+    val innerR = outerR * 0.42f
+    for (i in 0 until 10) {
+        val r = if (i % 2 == 0) outerR else innerR
+        val angle = Math.toRadians((-90 + i * 36).toDouble())
+        val x = cx + r * kotlin.math.cos(angle).toFloat()
+        val y = circleY + r * kotlin.math.sin(angle).toFloat()
+        if (i == 0) starPath.moveTo(x, y) else starPath.lineTo(x, y)
+    }
+    starPath.close()
+    canvas.drawPath(starPath, starPaint)
+
+    return bmp
+}
+
 // -- Map Composable --
 
 @Composable
@@ -442,6 +505,7 @@ fun OsmMapView(
     userLocation: GeoPoint?,
     homeStationLocation: GeoPoint?,
     highlightedStation: StationCandidate?,
+    destinationStationId: String? = null,
     nearbyStations: List<StationCandidate>,
     previewPosition: GeoPoint? = null,
     stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
@@ -475,6 +539,7 @@ fun OsmMapView(
     val homeMarkerBitmap = remember { createHomeMarkerBitmap() }
     val stationMarkerBitmap = remember { createStationMarkerBitmap(false) }
     val highlightedMarkerBitmap = remember { createStationMarkerBitmap(true) }
+    val destinationMarkerBitmap = remember { createDestinationMarkerBitmap() }
     val nearbyMarkerBitmap = remember { createNearbyMarkerBitmap() }
     val poiGroceryBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.GROCERY) }
     val poiBakeryBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.BAKERY) }
@@ -651,23 +716,31 @@ fun OsmMapView(
                 // Station markers
                 for (station in routeInfo.stations) {
                     val isHighlighted = highlightedStation?.id == station.id
+                    val isDestination = destinationStationId == station.id
                     val label = stationLabels[station.id]
-                    val iconBitmap = if (label != null) {
-                        val arr = label.arrivalAtStation?.let { labelTimeFormatter.format(it) }
-                        val dep = label.nextTrainDeparture?.let { labelTimeFormatter.format(it) }
-                        val lineTop = arr?.let { "arr $it" } ?: ""
-                        val lineBottom = dep?.let { "\u2192 $it" }
-                        if (lineTop.isBlank() && lineBottom == null) {
-                            if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
-                        } else {
-                            createLabeledStationBitmap(
-                                lineTop = lineTop.ifBlank { lineBottom ?: "" },
-                                lineBottom = if (lineTop.isBlank()) null else lineBottom,
-                                highlighted = isHighlighted,
-                                recommended = label.isRecommended
-                            )
+                    val iconBitmap = when {
+                        // Destination treatment wins over everything else so
+                        // the user can never miss their pinned stop.
+                        isDestination -> destinationMarkerBitmap
+                        label != null -> {
+                            val arr = label.arrivalAtStation?.let { labelTimeFormatter.format(it) }
+                            val dep = label.nextTrainDeparture?.let { labelTimeFormatter.format(it) }
+                            val lineTop = arr?.let { "arr $it" } ?: ""
+                            val lineBottom = dep?.let { "\u2192 $it" }
+                            if (lineTop.isBlank() && lineBottom == null) {
+                                if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
+                            } else {
+                                createLabeledStationBitmap(
+                                    lineTop = lineTop.ifBlank { lineBottom ?: "" },
+                                    lineBottom = if (lineTop.isBlank()) null else lineBottom,
+                                    highlighted = isHighlighted,
+                                    recommended = label.isRecommended
+                                )
+                            }
                         }
-                    } else if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
+                        isHighlighted -> highlightedMarkerBitmap
+                        else -> stationMarkerBitmap
+                    }
 
                     val marker = Marker(map).apply {
                         position = GeoPoint(station.lat, station.lon)

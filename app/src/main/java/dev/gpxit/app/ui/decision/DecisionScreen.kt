@@ -45,7 +45,7 @@ fun DecisionScreen(
     viewModel: DecisionViewModel,
     onRefresh: () -> Unit,
     onSearchNearby: () -> Unit,
-    onStationClick: (StationCandidate) -> Unit,
+    onOptionClick: (ConnectionOption) -> Unit,
     onBack: () -> Unit,
     userLat: Double? = null,
     userLon: Double? = null,
@@ -87,7 +87,7 @@ fun DecisionScreen(
                     itemsIndexed(allOptions) { _, option ->
                         HomeOptionCard(
                             option = option,
-                            onClick = { onStationClick(option.station) }
+                            onClick = { onOptionClick(option) }
                         )
                     }
                 }

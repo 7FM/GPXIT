@@ -514,9 +514,15 @@ fun GpxitApp(
                             decisionViewModel.searchNearby(loc.latitude, loc.longitude)
                         }
                     },
-                    onStationClick = { station ->
-                        highlightedStation = station
-                        zoomToStationTrigger = station
+                    onOptionClick = { option ->
+                        // DecisionScreen already has full connection data —
+                        // reuse it so the map's bottom sheet opens straight
+                        // to the "set destination / navigate by bike" view
+                        // without re-querying the backend.
+                        highlightedStation = option.station
+                        zoomToStationTrigger = option.station
+                        selectedStationInfo = option
+                        isLoadingStationInfo = false
                         navController.popBackStack()
                     },
                     onBack = { navController.popBackStack() },
