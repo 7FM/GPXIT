@@ -12,7 +12,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -47,6 +53,14 @@ import dev.gpxit.app.ui.components.StationCard
 import kotlinx.coroutines.flow.StateFlow
 import org.osmdroid.util.GeoPoint
 
+/** Tiny 4-tuple for (latSouth, latNorth, lonWest, lonEast) viewport state. */
+private data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
@@ -66,7 +80,16 @@ fun MapScreen(
     onNavigateToSettings: () -> Unit,
     onDownloadOfflineMap: () -> Unit,
     downloadState: dev.gpxit.app.GpxitDownloadState,
-    useDarkMap: Boolean = false,
+    showElevationGraph: Boolean = true,
+    stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
+    routePois: List<dev.gpxit.app.domain.Poi> = emptyList(),
+    poiRepository: dev.gpxit.app.data.poi.PoiRepository,
+    poiGrocery: Boolean = false,
+    poiWater: Boolean = false,
+    poiToilet: Boolean = false,
+    onSetPoiGrocery: (Boolean) -> Unit = {},
+    onSetPoiWater: (Boolean) -> Unit = {},
+    onSetPoiToilet: (Boolean) -> Unit = {},
     onSearchNearby: (center: GeoPoint, radiusMeters: Int) -> Unit,
     onClearNearbyStations: () -> Unit,
     onStationClick: (StationCandidate) -> Unit,
@@ -80,6 +103,72 @@ fun MapScreen(
     var mapRotation by remember { mutableFloatStateOf(0f) }
     var zoomLevel by remember { mutableStateOf(13.0) }
     var pendingMapCenterCallback by remember { mutableStateOf<((GeoPoint, Int) -> Unit)?>(null) }
+    var previewPosition by remember { mutableStateOf<GeoPoint?>(null) }
+    var visibleStartDistance by remember { mutableStateOf<Double?>(null) }
+    var visibleEndDistance by remember { mutableStateOf<Double?>(null) }
+
+    // Current viewport (latS, latN, lonW, lonE) — null until map reports it.
+    var viewportBounds by remember {
+        mutableStateOf<Quadruple<Double, Double, Double, Double>?>(null)
+    }
+    // Online-fetched POIs, used only when the offline cache (routePois) is empty.
+    var onlinePois by remember { mutableStateOf<List<dev.gpxit.app.domain.Poi>>(emptyList()) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val lastFetchKey = remember { mutableStateOf<String?>(null) }
+
+    // Types enabled right now.
+    val enabledTypes = remember(poiGrocery, poiWater, poiToilet) {
+        buildSet {
+            if (poiGrocery) {
+                add(dev.gpxit.app.domain.PoiType.GROCERY)
+                add(dev.gpxit.app.domain.PoiType.BAKERY)
+            }
+            if (poiWater) add(dev.gpxit.app.domain.PoiType.WATER)
+            if (poiToilet) add(dev.gpxit.app.domain.PoiType.TOILET)
+        }
+    }
+
+    // Online fallback: only runs when we don't have a prefetched cache.
+    androidx.compose.runtime.LaunchedEffect(
+        viewportBounds, zoomLevel, enabledTypes, routePois.isEmpty()
+    ) {
+        if (routePois.isNotEmpty()) {
+            onlinePois = emptyList()
+            return@LaunchedEffect
+        }
+        val bb = viewportBounds
+        if (enabledTypes.isEmpty() || bb == null || zoomLevel < 13.0) {
+            onlinePois = emptyList()
+            return@LaunchedEffect
+        }
+        val q = 0.01
+        val qs = (bb.first / q).toInt()
+        val qn = (bb.second / q).toInt()
+        val qw = (bb.third / q).toInt()
+        val qe = (bb.fourth / q).toInt()
+        val key = "$qs/$qn/$qw/$qe/${enabledTypes.joinToString(",")}"
+        if (key == lastFetchKey.value) return@LaunchedEffect
+        lastFetchKey.value = key
+        kotlinx.coroutines.delay(400)
+        if (key != lastFetchKey.value) return@LaunchedEffect
+        onlinePois = poiRepository.fetchPois(
+            enabledTypes, bb.first, bb.second, bb.third, bb.fourth
+        )
+    }
+
+    // What we actually render: cached POIs filtered by viewport + enabled types
+    // when available; otherwise the online-fetched set (same filter).
+    val pois: List<dev.gpxit.app.domain.Poi> = remember(
+        routePois, onlinePois, viewportBounds, enabledTypes
+    ) {
+        if (enabledTypes.isEmpty()) return@remember emptyList()
+        val source = if (routePois.isNotEmpty()) routePois else onlinePois
+        val bb = viewportBounds
+        source.filter { p ->
+            p.type in enabledTypes &&
+                (bb == null || (p.lat in bb.first..bb.second && p.lon in bb.third..bb.fourth))
+        }
+    }
 
     // Apply pending command from parent via SideEffect (after composition)
     androidx.compose.runtime.SideEffect {
@@ -147,37 +236,6 @@ fun MapScreen(
                 }
             )
         },
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalIconButton(
-                    onClick = { mapCommand = MapCommand.ZOOM_TO_LOCATION },
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Canvas(modifier = Modifier.size(28.dp)) {
-                        val cx = size.width / 2f
-                        val cy = size.height / 2f
-                        val r = size.width / 2f
-                        val lineColor = Color.Black
-                        val strokeW = 3f
-                        val circleStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeW)
-                        // Outer circle
-                        drawCircle(lineColor, radius = r * 0.5f, center = androidx.compose.ui.geometry.Offset(cx, cy), style = circleStroke)
-                        // Center dot
-                        drawCircle(lineColor, radius = 3f, center = androidx.compose.ui.geometry.Offset(cx, cy))
-                        val gap = 3f
-                        val inner = r * 0.5f
-                        // Top
-                        drawLine(lineColor, androidx.compose.ui.geometry.Offset(cx, 0f), androidx.compose.ui.geometry.Offset(cx, cy - inner - gap), strokeWidth = strokeW)
-                        // Bottom
-                        drawLine(lineColor, androidx.compose.ui.geometry.Offset(cx, cy + inner + gap), androidx.compose.ui.geometry.Offset(cx, size.height), strokeWidth = strokeW)
-                        // Left
-                        drawLine(lineColor, androidx.compose.ui.geometry.Offset(0f, cy), androidx.compose.ui.geometry.Offset(cx - inner - gap, cy), strokeWidth = strokeW)
-                        // Right
-                        drawLine(lineColor, androidx.compose.ui.geometry.Offset(cx + inner + gap, cy), androidx.compose.ui.geometry.Offset(size.width, cy), strokeWidth = strokeW)
-                    }
-                }
-            }
-        }
     ) { paddingValues ->
         Column(
             modifier = modifier
@@ -191,14 +249,46 @@ fun MapScreen(
                 homeStationLocation = homeStationLocation,
                 highlightedStation = highlightedStation,
                 nearbyStations = nearbyStations,
-                useDarkMap = useDarkMap,
+                previewPosition = previewPosition,
+                stationLabels = stationLabels,
+                pois = pois,
                 mapCommand = mapCommand,
+                // (pois is the local state declared above)
                 onMapCommandHandled = { mapCommand = MapCommand.NONE },
                 zoomToStation = zoomToStation,
                 onZoomToStationConsumed = onZoomToStationConsumed,
                 onStationClick = onStationClick,
                 onMapRotationChanged = { mapRotation = it },
                 onZoomLevelChanged = { zoomLevel = it },
+                onViewportChanged = { n, s, e, w ->
+                    viewportBounds = Quadruple(s, n, w, e)
+                    val pts = routeInfo?.points
+                    if (pts == null) {
+                        visibleStartDistance = null
+                        visibleEndDistance = null
+                    } else {
+                        // Handle antimeridian edge case safely
+                        val east = if (e < w) e + 360.0 else e
+                        var first: Double? = null
+                        var last: Double? = null
+                        for (p in pts) {
+                            val lon = if (p.lon < w) p.lon + 360.0 else p.lon
+                            if (p.lat in s..n && lon in w..east) {
+                                if (first == null) first = p.distanceFromStart
+                                last = p.distanceFromStart
+                            }
+                        }
+                        val f = first
+                        val l = last
+                        if (f != null && l != null && l - f > 10.0) {
+                            visibleStartDistance = f
+                            visibleEndDistance = l
+                        } else {
+                            visibleStartDistance = null
+                            visibleEndDistance = null
+                        }
+                    }
+                },
                 onGetMapCenter = { center, radius ->
                     pendingMapCenterCallback?.invoke(center, radius)
                     pendingMapCenterCallback = null
@@ -260,44 +350,97 @@ fun MapScreen(
                 ) {
                     Text("\u26F6", style = MaterialTheme.typography.titleMedium) // ⛶ square four corners
                 }
+
+                // Layers menu (POI overlays)
+                Box {
+                    var menuOpen by remember { mutableStateOf(false) }
+                    FilledTonalIconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Text("\u2630", style = MaterialTheme.typography.titleMedium) // ☰ layers
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Grocery / bakery") },
+                            leadingIcon = {
+                                Checkbox(checked = poiGrocery, onCheckedChange = null)
+                            },
+                            onClick = { onSetPoiGrocery(!poiGrocery) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Drinking water") },
+                            leadingIcon = {
+                                Checkbox(checked = poiWater, onCheckedChange = null)
+                            },
+                            onClick = { onSetPoiWater(!poiWater) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Toilets") },
+                            leadingIcon = {
+                                Checkbox(checked = poiToilet, onCheckedChange = null)
+                            },
+                            onClick = { onSetPoiToilet(!poiToilet) }
+                        )
+                    }
+                }
             }
 
-            // Bottom-center buttons
+            // Bottom-center buttons — compact Buttons instead of Extended FABs
+            // so the row is narrow enough to share the bottom with the GPS
+            // icon on the right.
+            val compactPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (nearbyStations.isNotEmpty()) {
-                    FilledTonalIconButton(
-                        onClick = onClearNearbyStations,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Text("\u2715")
+                // Always reserve a fixed-size slot so the main buttons don't
+                // shift when the clear (✕) button appears / disappears.
+                Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    if (nearbyStations.isNotEmpty()) {
+                        FilledTonalIconButton(
+                            onClick = onClearNearbyStations,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Text("\u2715")
+                        }
                     }
                 }
-                ExtendedFloatingActionButton(
+                Button(
                     onClick = onTakeMeHome,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    contentPadding = compactPadding
                 ) {
-                    Text("Take me home", style = MaterialTheme.typography.labelLarge)
+                    Text("Take me home", style = MaterialTheme.typography.labelMedium)
                 }
-                ExtendedFloatingActionButton(
+                Button(
                     onClick = {
                         pendingMapCenterCallback = { center, radius -> onSearchNearby(center, radius) }
                         mapCommand = MapCommand.GET_MAP_CENTER
                     },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    contentPadding = compactPadding
                 ) {
                     if (isSearchingNearby) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("  Searching...", style = MaterialTheme.typography.labelLarge)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text("  Searching\u2026", style = MaterialTheme.typography.labelMedium)
                     } else {
-                        Text("Search nearby", style = MaterialTheme.typography.labelLarge)
+                        Text("Search nearby", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -333,6 +476,34 @@ fun MapScreen(
                     .padding(8.dp)
             )
 
+            // My location button — bottom-right corner. The centered action row
+            // is compact enough (compact Buttons + small padding) to share the
+            // bottom edge without overlapping on typical phone widths.
+            FilledTonalIconButton(
+                onClick = { mapCommand = MapCommand.ZOOM_TO_LOCATION },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 12.dp, bottom = 12.dp)
+                    .size(48.dp)
+            ) {
+                Canvas(modifier = Modifier.size(28.dp)) {
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val r = size.width / 2f
+                    val lineColor = Color.Black
+                    val strokeW = 3f
+                    val circleStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeW)
+                    drawCircle(lineColor, radius = r * 0.5f, center = Offset(cx, cy), style = circleStroke)
+                    drawCircle(lineColor, radius = 3f, center = Offset(cx, cy))
+                    val gap = 3f
+                    val inner = r * 0.5f
+                    drawLine(lineColor, Offset(cx, 0f), Offset(cx, cy - inner - gap), strokeWidth = strokeW)
+                    drawLine(lineColor, Offset(cx, cy + inner + gap), Offset(cx, size.height), strokeWidth = strokeW)
+                    drawLine(lineColor, Offset(0f, cy), Offset(cx - inner - gap, cy), strokeWidth = strokeW)
+                    drawLine(lineColor, Offset(cx + inner + gap, cy), Offset(size.width, cy), strokeWidth = strokeW)
+                }
+            }
+
             if (routeInfo == null) {
                 Text(
                     text = "No route loaded",
@@ -341,12 +512,20 @@ fun MapScreen(
             }
         }
 
-        // Elevation profile
+        // Elevation profile (drag to preview positions on the map)
         val route = routeInfo
-        if (route != null && route.points.any { it.elevation != null }) {
+        if (showElevationGraph && route != null && route.points.any { it.elevation != null }) {
             ElevationProfile(
                 routeInfo = route,
-                stations = route.stations
+                stations = route.stations,
+                startDistance = visibleStartDistance,
+                endDistance = visibleEndDistance,
+                onCursorPositionChanged = { dist ->
+                    previewPosition = dist?.let { d ->
+                        dev.gpxit.app.data.gpx.routePointAtDistance(route.points, d)
+                            ?.let { (lat, lon) -> GeoPoint(lat, lon) }
+                    }
+                }
             )
         }
         } // end Column

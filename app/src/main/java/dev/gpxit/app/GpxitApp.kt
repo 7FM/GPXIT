@@ -90,6 +90,7 @@ fun GpxitApp(
     val scope = rememberCoroutineScope()
     val locationService = remember { LocationService(context) }
     val transitRepository = remember { TransitRepository() }
+    val poiRepository = remember { dev.gpxit.app.data.poi.PoiRepository() }
     val prefsRepository = remember { PrefsRepository(context) }
     val routeStorage = remember { dev.gpxit.app.data.RouteStorage(context) }
     val mapTileDownloader = remember { dev.gpxit.app.data.MapTileDownloader(context) }
@@ -188,6 +189,17 @@ fun GpxitApp(
             }
             composable("map") {
                 val routeInfo by importViewModel.routeInfo.collectAsState()
+                val routePois by importViewModel.routePois.collectAsState()
+                val decisionState by decisionViewModel.uiState.collectAsState()
+                val stationLabels = remember(decisionState.options) {
+                    decisionState.options.associate { opt ->
+                        opt.station.id to dev.gpxit.app.domain.StationLabel(
+                            arrivalAtStation = opt.estimatedArrivalAtStation,
+                            nextTrainDeparture = opt.connections.firstOrNull()?.departureTime,
+                            isRecommended = opt.isRecommended
+                        )
+                    }
+                }
 
                 val homeLat = prefs.homeStationLat
                 val homeLon = prefs.homeStationLon
@@ -249,7 +261,16 @@ fun GpxitApp(
                     onNavigateToSettings = { navController.navigate("settings") },
                     onDownloadOfflineMap = { scope.launch { triggerDownload(routeInfo, mapTileDownloader) { downloadState = it } } },
                     downloadState = downloadState,
-                    useDarkMap = prefs.useDarkMap,
+                    showElevationGraph = prefs.showElevationGraph,
+                    stationLabels = stationLabels,
+                    routePois = routePois,
+                    poiRepository = poiRepository,
+                    poiGrocery = prefs.poiGrocery,
+                    poiWater = prefs.poiWater,
+                    poiToilet = prefs.poiToilet,
+                    onSetPoiGrocery = { settingsViewModel.setPoiGrocery(it) },
+                    onSetPoiWater = { settingsViewModel.setPoiWater(it) },
+                    onSetPoiToilet = { settingsViewModel.setPoiToilet(it) },
                     onStationClick = { station ->
                         highlightedStation = station
                         // Query connections for this single station
@@ -411,7 +432,8 @@ fun GpxitApp(
                     onToggleConnectionProduct = { settingsViewModel.toggleConnectionProduct(it) },
                     onSetMinWaitBuffer = { settingsViewModel.setMinWaitBuffer(it) },
                     onSetMaxWaitMinutes = { settingsViewModel.setMaxWaitMinutes(it) },
-                    onSetUseDarkMap = { settingsViewModel.setUseDarkMap(it) },
+                    onSetMaxStationsToCheck = { settingsViewModel.setMaxStationsToCheck(it) },
+                    onSetShowElevationGraph = { settingsViewModel.setShowElevationGraph(it) },
                     onSetElevationAwareTime = { settingsViewModel.setElevationAwareTime(it) },
                     stationSuggestions = suggestions,
                     onBack = { navController.popBackStack() }

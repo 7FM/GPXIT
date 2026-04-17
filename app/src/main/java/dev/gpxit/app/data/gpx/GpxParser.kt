@@ -85,6 +85,58 @@ fun haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Dou
 }
 
 /**
+ * Interpolate lat/lon (linearly) at a given cumulative distance along the route.
+ * Returns null if the list is empty.
+ */
+fun routePointAtDistance(points: List<RoutePoint>, distance: Double): Pair<Double, Double>? {
+    if (points.isEmpty()) return null
+    val clamped = distance.coerceIn(0.0, points.last().distanceFromStart)
+    // Binary search: first index with distanceFromStart >= clamped
+    var lo = 0
+    var hi = points.size - 1
+    while (lo < hi) {
+        val mid = (lo + hi) / 2
+        if (points[mid].distanceFromStart < clamped) lo = mid + 1 else hi = mid
+    }
+    val idx = lo
+    if (idx == 0) return points[0].lat to points[0].lon
+    val p0 = points[idx - 1]
+    val p1 = points[idx]
+    val span = p1.distanceFromStart - p0.distanceFromStart
+    if (span <= 0) return p1.lat to p1.lon
+    val t = ((clamped - p0.distanceFromStart) / span).coerceIn(0.0, 1.0)
+    return (p0.lat + (p1.lat - p0.lat) * t) to (p0.lon + (p1.lon - p0.lon) * t)
+}
+
+/**
+ * Linearly interpolate elevation at a given cumulative distance. Returns null if
+ * there's no usable elevation data around that distance.
+ */
+fun routeElevationAtDistance(points: List<RoutePoint>, distance: Double): Double? {
+    if (points.isEmpty()) return null
+    val clamped = distance.coerceIn(0.0, points.last().distanceFromStart)
+    var lo = 0
+    var hi = points.size - 1
+    while (lo < hi) {
+        val mid = (lo + hi) / 2
+        if (points[mid].distanceFromStart < clamped) lo = mid + 1 else hi = mid
+    }
+    val idx = lo
+    if (idx == 0) return points[0].elevation
+    val p0 = points[idx - 1]
+    val p1 = points[idx]
+    val e0 = p0.elevation
+    val e1 = p1.elevation
+    if (e0 == null && e1 == null) return null
+    if (e0 == null) return e1
+    if (e1 == null) return e0
+    val span = p1.distanceFromStart - p0.distanceFromStart
+    if (span <= 0) return e1
+    val t = ((clamped - p0.distanceFromStart) / span).coerceIn(0.0, 1.0)
+    return e0 + (e1 - e0) * t
+}
+
+/**
  * Find the index of the closest point on the route to the given lat/lon.
  * Returns the index and the distance in meters.
  */

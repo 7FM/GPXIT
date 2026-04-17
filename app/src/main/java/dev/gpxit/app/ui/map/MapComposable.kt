@@ -29,7 +29,48 @@ enum class MapCommand {
     NONE, ZOOM_TO_ROUTE, ZOOM_TO_LOCATION, ZOOM_TO_STATION, RESET_ROTATION, GET_MAP_CENTER, ZOOM_IN, ZOOM_OUT
 }
 
+private val labelTimeFormatter = java.time.format.DateTimeFormatter
+    .ofPattern("HH:mm")
+    .withZone(java.time.ZoneId.systemDefault())
+
 // -- Marker bitmaps --
+
+private fun createPreviewDotBitmap(): Bitmap {
+    val size = 72
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val center = size / 2f
+
+    // Shadow
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(80, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(center, center + 2f, 28f, shadowPaint)
+
+    // White border
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(center, center, 28f, borderPaint)
+
+    // Amber fill
+    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(255, 193, 7)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(center, center, 22f, fillPaint)
+
+    // Inner highlight
+    val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(255, 224, 130)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(center - 6f, center - 6f, 8f, highlightPaint)
+
+    return bmp
+}
 
 private fun createBlueDotBitmap(): Bitmap {
     val size = 56
@@ -127,6 +168,141 @@ private fun createHomeMarkerBitmap(): Bitmap {
     canvas.drawRect(cx - 9f, 28f, cx + 9f, 40f, iconPaint)
     // Door (green cutout)
     canvas.drawRect(cx - 3f, 32f, cx + 3f, 40f, pinPaint)
+
+    return bmp
+}
+
+/**
+ * Build a composite bitmap: a two-line text pill stacked above a station pin.
+ * Returned bitmap's bottom-center is the pin tip (anchor 0.5, 1.0).
+ */
+private fun createLabeledStationBitmap(
+    lineTop: String,
+    lineBottom: String?,
+    highlighted: Boolean,
+    recommended: Boolean
+): Bitmap {
+    val pinBmp = createStationMarkerBitmap(highlighted)
+
+    val textSizePx = 22f
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textSize = textSizePx
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    val boldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = if (recommended) Color.rgb(25, 118, 210) else Color.rgb(60, 60, 60)
+        textSize = textSizePx
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+
+    // Measure text widths so the pill fits
+    val topW = textPaint.measureText(lineTop)
+    val botW = lineBottom?.let { textPaint.measureText(it) } ?: 0f
+    val contentW = maxOf(topW, botW)
+    val pillPaddingX = 10f
+    val pillPaddingY = 5f
+    val lineGap = 3f
+    val pillW = contentW + 2 * pillPaddingX
+    val textLines = if (lineBottom != null) 2 else 1
+    val pillH = textLines * textSizePx + (textLines - 1) * lineGap + 2 * pillPaddingY
+
+    val gapBetween = 2f
+    val totalW = maxOf(pillW.toInt(), pinBmp.width)
+    val totalH = (pillH + gapBetween + pinBmp.height).toInt()
+
+    val bmp = Bitmap.createBitmap(totalW, totalH, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+
+    // Pill background
+    val pillLeft = (totalW - pillW) / 2f
+    val pillTop = 0f
+    val pillRect = android.graphics.RectF(pillLeft, pillTop, pillLeft + pillW, pillTop + pillH)
+    val pillShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(60, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawRoundRect(
+        android.graphics.RectF(pillRect.left + 1f, pillRect.top + 2f, pillRect.right + 1f, pillRect.bottom + 2f),
+        8f, 8f, pillShadow
+    )
+    val pillBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = if (recommended) Color.rgb(232, 244, 253) else Color.WHITE
+        style = Paint.Style.FILL
+    }
+    canvas.drawRoundRect(pillRect, 8f, 8f, pillBg)
+    val pillBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = when {
+            recommended -> Color.rgb(25, 118, 210) // blue
+            highlighted -> Color.rgb(255, 152, 0)  // orange
+            else -> Color.rgb(200, 200, 200)        // gray
+        }
+        style = Paint.Style.STROKE
+        strokeWidth = if (recommended) 2.5f else 1.5f
+    }
+    canvas.drawRoundRect(pillRect, 8f, 8f, pillBorder)
+
+    // Text
+    val cxText = totalW / 2f
+    val firstBaseline = pillTop + pillPaddingY + textSizePx - 4f
+    canvas.drawText(lineTop, cxText, firstBaseline, boldPaint)
+    if (lineBottom != null) {
+        canvas.drawText(
+            lineBottom,
+            cxText,
+            firstBaseline + textSizePx + lineGap,
+            textPaint
+        )
+    }
+
+    // Pin below the pill, centered horizontally
+    val pinLeft = (totalW - pinBmp.width) / 2f
+    val pinTop = pillH + gapBetween
+    canvas.drawBitmap(pinBmp, pinLeft, pinTop, null)
+
+    return bmp
+}
+
+private fun createPoiBitmap(type: dev.gpxit.app.domain.PoiType): Bitmap {
+    val size = 40
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val cx = size / 2f
+    val r = 14f
+
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(70, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, cx + 1.5f, r + 1.5f, shadowPaint)
+
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, cx, r + 2f, borderPaint)
+
+    val (fillColor, label) = when (type) {
+        dev.gpxit.app.domain.PoiType.GROCERY -> Color.rgb(46, 125, 50) to "G"    // green
+        dev.gpxit.app.domain.PoiType.BAKERY -> Color.rgb(198, 124, 0) to "B"     // amber
+        dev.gpxit.app.domain.PoiType.WATER -> Color.rgb(2, 136, 209) to "W"      // blue
+        dev.gpxit.app.domain.PoiType.TOILET -> Color.rgb(94, 53, 177) to "WC"    // purple
+    }
+    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = fillColor
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, cx, r, fillPaint)
+
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = if (label.length > 1) 13f else 17f
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    canvas.drawText(label, cx, cx + textPaint.textSize / 3f, textPaint)
 
     return bmp
 }
@@ -267,7 +443,9 @@ fun OsmMapView(
     homeStationLocation: GeoPoint?,
     highlightedStation: StationCandidate?,
     nearbyStations: List<StationCandidate>,
-    useDarkMap: Boolean = false,
+    previewPosition: GeoPoint? = null,
+    stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
+    pois: List<dev.gpxit.app.domain.Poi> = emptyList(),
     mapCommand: MapCommand,
     onMapCommandHandled: () -> Unit,
     zoomToStation: StationCandidate? = null,
@@ -275,6 +453,7 @@ fun OsmMapView(
     onStationClick: (StationCandidate) -> Unit,
     onMapRotationChanged: (Float) -> Unit,
     onZoomLevelChanged: (Double) -> Unit = {},
+    onViewportChanged: (north: Double, south: Double, east: Double, west: Double) -> Unit = { _, _, _, _ -> },
     onGetMapCenter: ((center: GeoPoint, radiusMeters: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -292,17 +471,22 @@ fun OsmMapView(
     }
 
     val blueDotBitmap = remember { createBlueDotBitmap() }
+    val previewDotBitmap = remember { createPreviewDotBitmap() }
     val homeMarkerBitmap = remember { createHomeMarkerBitmap() }
     val stationMarkerBitmap = remember { createStationMarkerBitmap(false) }
     val highlightedMarkerBitmap = remember { createStationMarkerBitmap(true) }
     val nearbyMarkerBitmap = remember { createNearbyMarkerBitmap() }
+    val poiGroceryBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.GROCERY) }
+    val poiBakeryBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.BAKERY) }
+    val poiWaterBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.WATER) }
+    val poiToiletBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.TOILET) }
 
     // Track content overlays separately from persistent ones
     val contentOverlays = remember { mutableListOf<Overlay>() }
 
     val mapView = remember {
         MapView(context).apply {
-            setTileSource(dev.gpxit.app.data.getActiveTileSource(useDarkMap))
+            setTileSource(dev.gpxit.app.data.OsmTileSource)
             setMultiTouchControls(true)
             setBuiltInZoomControls(false)
             isHorizontalMapRepetitionEnabled = false
@@ -340,12 +524,6 @@ fun OsmMapView(
         }
     }
 
-    // Switch tile source when dark mode changes
-    LaunchedEffect(useDarkMap) {
-        mapView.setTileSource(dev.gpxit.app.data.getActiveTileSource(useDarkMap))
-        mapView.invalidate()
-    }
-
     // Lifecycle
     DisposableEffect(mapView) {
         mapView.onResume()
@@ -355,11 +533,21 @@ fun OsmMapView(
         }
     }
 
-    // Poll map rotation and zoom level
+    // Poll map rotation, zoom, and viewport
     LaunchedEffect(mapView) {
+        var lastN = Double.NaN
+        var lastS = Double.NaN
+        var lastE = Double.NaN
+        var lastW = Double.NaN
         while (true) {
             onMapRotationChanged(mapView.mapOrientation)
             onZoomLevelChanged(mapView.zoomLevelDouble)
+            val bb = mapView.boundingBox
+            val n = bb.latNorth; val s = bb.latSouth; val e = bb.lonEast; val w = bb.lonWest
+            if (n != lastN || s != lastS || e != lastE || w != lastW) {
+                lastN = n; lastS = s; lastE = e; lastW = w
+                onViewportChanged(n, s, e, w)
+            }
             kotlinx.coroutines.delay(200)
         }
     }
@@ -463,14 +651,29 @@ fun OsmMapView(
                 // Station markers
                 for (station in routeInfo.stations) {
                     val isHighlighted = highlightedStation?.id == station.id
+                    val label = stationLabels[station.id]
+                    val iconBitmap = if (label != null) {
+                        val arr = label.arrivalAtStation?.let { labelTimeFormatter.format(it) }
+                        val dep = label.nextTrainDeparture?.let { labelTimeFormatter.format(it) }
+                        val lineTop = arr?.let { "arr $it" } ?: ""
+                        val lineBottom = dep?.let { "\u2192 $it" }
+                        if (lineTop.isBlank() && lineBottom == null) {
+                            if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
+                        } else {
+                            createLabeledStationBitmap(
+                                lineTop = lineTop.ifBlank { lineBottom ?: "" },
+                                lineBottom = if (lineTop.isBlank()) null else lineBottom,
+                                highlighted = isHighlighted,
+                                recommended = label.isRecommended
+                            )
+                        }
+                    } else if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
+
                     val marker = Marker(map).apply {
                         position = GeoPoint(station.lat, station.lon)
                         title = station.name
                         snippet = "%.1f km along route".format(station.distanceAlongRouteMeters / 1000.0)
-                        icon = BitmapDrawable(
-                            context.resources,
-                            if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
-                        )
+                        icon = BitmapDrawable(context.resources, iconBitmap)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                         setOnMarkerClickListener { _, _ ->
                             onStationClick(station)
@@ -505,6 +708,29 @@ fun OsmMapView(
                 contentOverlays.add(marker)
             }
 
+            // POI markers (grocery, bakery, water, toilet)
+            for (poi in pois) {
+                val bmp = when (poi.type) {
+                    dev.gpxit.app.domain.PoiType.GROCERY -> poiGroceryBmp
+                    dev.gpxit.app.domain.PoiType.BAKERY -> poiBakeryBmp
+                    dev.gpxit.app.domain.PoiType.WATER -> poiWaterBmp
+                    dev.gpxit.app.domain.PoiType.TOILET -> poiToiletBmp
+                }
+                val marker = Marker(map).apply {
+                    position = GeoPoint(poi.lat, poi.lon)
+                    title = poi.name ?: when (poi.type) {
+                        dev.gpxit.app.domain.PoiType.GROCERY -> "Grocery"
+                        dev.gpxit.app.domain.PoiType.BAKERY -> "Bakery"
+                        dev.gpxit.app.domain.PoiType.WATER -> "Drinking water"
+                        dev.gpxit.app.domain.PoiType.TOILET -> "Toilet"
+                    }
+                    icon = BitmapDrawable(context.resources, bmp)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                }
+                map.overlays.add(marker)
+                contentOverlays.add(marker)
+            }
+
             // Home station marker
             if (homeStationLocation != null) {
                 val homeMarker = Marker(map).apply {
@@ -527,6 +753,18 @@ fun OsmMapView(
                 }
                 map.overlays.add(userMarker)
                 contentOverlays.add(userMarker)
+            }
+
+            // Elevation graph cursor preview: amber dot along route
+            if (previewPosition != null) {
+                val previewMarker = Marker(map).apply {
+                    position = previewPosition
+                    icon = BitmapDrawable(context.resources, previewDotBitmap)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    setInfoWindow(null)
+                }
+                map.overlays.add(previewMarker)
+                contentOverlays.add(previewMarker)
             }
 
             map.invalidate()
