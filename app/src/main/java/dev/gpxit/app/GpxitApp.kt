@@ -285,14 +285,26 @@ fun GpxitApp(
                 val routeInfo by importViewModel.routeInfo.collectAsState()
                 val routePois by importViewModel.routePois.collectAsState()
                 val decisionState by decisionViewModel.uiState.collectAsState()
-                val stationLabels = remember(decisionState.options) {
-                    decisionState.options.associate { opt ->
+                val stationLabels = remember(decisionState.options, userDestination) {
+                    val m = decisionState.options.associate { opt ->
                         opt.station.id to dev.gpxit.app.domain.StationLabel(
                             arrivalAtStation = opt.estimatedArrivalAtStation,
                             nextTrainDeparture = opt.connections.firstOrNull()?.departureTime,
                             isRecommended = opt.isRecommended
                         )
+                    }.toMutableMap()
+                    // Destination's times come from whichever option the user
+                    // pinned — covers the case where they picked a station the
+                    // Take-me-home fan-out didn't include (e.g. via a direct
+                    // map tap).
+                    userDestination?.let { opt ->
+                        m[opt.station.id] = dev.gpxit.app.domain.StationLabel(
+                            arrivalAtStation = opt.estimatedArrivalAtStation,
+                            nextTrainDeparture = opt.connections.firstOrNull()?.departureTime,
+                            isRecommended = false
+                        )
                     }
+                    m
                 }
 
                 val homeLat = prefs.homeStationLat

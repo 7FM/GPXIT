@@ -180,9 +180,14 @@ private fun createLabeledStationBitmap(
     lineTop: String,
     lineBottom: String?,
     highlighted: Boolean,
-    recommended: Boolean
+    recommended: Boolean,
+    destination: Boolean = false
 ): Bitmap {
-    val pinBmp = createStationMarkerBitmap(highlighted)
+    val pinBmp = if (destination) {
+        createDestinationMarkerBitmap()
+    } else {
+        createStationMarkerBitmap(highlighted)
+    }
 
     val textSizePx = 22f
     val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -192,7 +197,11 @@ private fun createLabeledStationBitmap(
         isFakeBoldText = true
     }
     val boldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (recommended) Color.rgb(25, 118, 210) else Color.rgb(60, 60, 60)
+        color = when {
+            destination -> Color.rgb(27, 94, 32)   // dark green
+            recommended -> Color.rgb(25, 118, 210) // blue
+            else -> Color.rgb(60, 60, 60)
+        }
         textSize = textSizePx
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
@@ -229,18 +238,23 @@ private fun createLabeledStationBitmap(
         8f, 8f, pillShadow
     )
     val pillBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (recommended) Color.rgb(232, 244, 253) else Color.WHITE
+        color = when {
+            destination -> Color.rgb(232, 245, 233) // pale green
+            recommended -> Color.rgb(232, 244, 253) // pale blue
+            else -> Color.WHITE
+        }
         style = Paint.Style.FILL
     }
     canvas.drawRoundRect(pillRect, 8f, 8f, pillBg)
     val pillBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = when {
+            destination -> Color.rgb(46, 125, 50)  // green (matches pin)
             recommended -> Color.rgb(25, 118, 210) // blue
             highlighted -> Color.rgb(255, 152, 0)  // orange
             else -> Color.rgb(200, 200, 200)        // gray
         }
         style = Paint.Style.STROKE
-        strokeWidth = if (recommended) 2.5f else 1.5f
+        strokeWidth = if (recommended || destination) 2.5f else 1.5f
     }
     canvas.drawRoundRect(pillRect, 8f, 8f, pillBorder)
 
@@ -718,26 +732,29 @@ fun OsmMapView(
                     val isHighlighted = highlightedStation?.id == station.id
                     val isDestination = destinationStationId == station.id
                     val label = stationLabels[station.id]
+                    val arr = label?.arrivalAtStation?.let { labelTimeFormatter.format(it) }
+                    val dep = label?.nextTrainDeparture?.let { labelTimeFormatter.format(it) }
+                    val lineTop = arr?.let { "arr $it" } ?: ""
+                    val lineBottom = dep?.let { "\u2192 $it" }
+                    val hasLabelText = lineTop.isNotBlank() || lineBottom != null
                     val iconBitmap = when {
-                        // Destination treatment wins over everything else so
-                        // the user can never miss their pinned stop.
+                        // Destination + label → green-star pin with arr/dep pill,
+                        // so the user still sees when they'll arrive and when
+                        // the first train leaves.
+                        isDestination && hasLabelText -> createLabeledStationBitmap(
+                            lineTop = lineTop.ifBlank { lineBottom ?: "" },
+                            lineBottom = if (lineTop.isBlank()) null else lineBottom,
+                            highlighted = false,
+                            recommended = false,
+                            destination = true
+                        )
                         isDestination -> destinationMarkerBitmap
-                        label != null -> {
-                            val arr = label.arrivalAtStation?.let { labelTimeFormatter.format(it) }
-                            val dep = label.nextTrainDeparture?.let { labelTimeFormatter.format(it) }
-                            val lineTop = arr?.let { "arr $it" } ?: ""
-                            val lineBottom = dep?.let { "\u2192 $it" }
-                            if (lineTop.isBlank() && lineBottom == null) {
-                                if (isHighlighted) highlightedMarkerBitmap else stationMarkerBitmap
-                            } else {
-                                createLabeledStationBitmap(
-                                    lineTop = lineTop.ifBlank { lineBottom ?: "" },
-                                    lineBottom = if (lineTop.isBlank()) null else lineBottom,
-                                    highlighted = isHighlighted,
-                                    recommended = label.isRecommended
-                                )
-                            }
-                        }
+                        hasLabelText -> createLabeledStationBitmap(
+                            lineTop = lineTop.ifBlank { lineBottom ?: "" },
+                            lineBottom = if (lineTop.isBlank()) null else lineBottom,
+                            highlighted = isHighlighted,
+                            recommended = label?.isRecommended == true
+                        )
                         isHighlighted -> highlightedMarkerBitmap
                         else -> stationMarkerBitmap
                     }
