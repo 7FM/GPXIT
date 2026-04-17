@@ -177,7 +177,7 @@ class TripTrackingService : Service() {
         )
 
         val title = snap?.routeName?.takeIf { it.isNotBlank() } ?: "Trip tracking"
-        val primary = snapshotLine(snap)
+        val primary = snapshotLine(snap, rec)
         val home = homeLine(rec)
         // Collapsed view shows the most time-sensitive line. If we've
         // got a next-train recommendation surface that, otherwise the
@@ -199,17 +199,29 @@ class TripTrackingService : Service() {
             .build()
     }
 
-    private fun snapshotLine(snap: TripSnapshot?): String {
+    private fun snapshotLine(snap: TripSnapshot?, rec: HomeRecommendation?): String {
         if (snap == null) return "Waiting for GPS\u2026"
         val dist = "%.1f / %.1f km".format(
             snap.currentDistanceMeters / 1000.0,
             snap.totalDistanceMeters / 1000.0
         )
-        val station = snap.nextStationLabel?.let { " \u2022 $it" }.orEmpty()
+        // When "Take me home" has picked a specific station we swap the
+        // "next <geographically-nearest>" label for a fresh ETA to the
+        // recommended station — otherwise the two lines can disagree
+        // (the nearest stop isn't always the one you're catching).
+        val stationLabel = if (rec != null) {
+            val remaining = (rec.stationDistanceAlongRouteMeters - snap.currentDistanceMeters)
+                .coerceAtLeast(0.0)
+            val speedMs = (avgSpeedKmh * 1000.0 / 3600.0).coerceAtLeast(0.1)
+            val etaMin = (remaining / speedMs / 60.0).toInt()
+            " \u2022 ${rec.stationName} in ~${etaMin}min"
+        } else {
+            snap.nextStationLabel?.let { " \u2022 $it" }.orEmpty()
+        }
         val offRoute = if (snap.distanceFromRouteMeters > 300.0)
             " \u2022 off-route"
         else ""
-        return dist + station + offRoute
+        return dist + stationLabel + offRoute
     }
 
     /**
@@ -335,6 +347,12 @@ data class HomeRecommendation(
     val departureTime: Instant?,
     val arrivalHomeTime: Instant?,
     val line: String?,
+    /**
+     * Where the recommended station sits along the route (meters from
+     * start). Used to recompute a fresh ETA from the rider's current
+     * position instead of the stale one captured at "Take me home" time.
+     */
+    val stationDistanceAlongRouteMeters: Double,
 )
 
 private val clockFormatter: DateTimeFormatter =

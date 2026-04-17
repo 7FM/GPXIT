@@ -39,6 +39,7 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                 departureTime = firstConn?.departureTime,
                 arrivalHomeTime = option.bestArrivalHome,
                 line = firstConn?.line,
+                stationDistanceAlongRouteMeters = option.station.distanceAlongRouteMeters,
             )
         )
     }
