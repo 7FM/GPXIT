@@ -1,0 +1,86 @@
+name: Build POI Dataset
+
+# Rebuilds the filtered SQLite POI dataset from the latest Geofabrik
+# Germany extract and publishes it as the `poi-data` release asset the
+# Android app downloads on first launch and refreshes monthly.
+#
+# Trigger on the 1st of each month, or on demand via workflow_dispatch.
+
+on:
+  schedule:
+    # 03:17 UTC on the 1st of each month — slightly off-the-hour so we
+    # don't pile onto the cron spike.
+    - cron: '17 3 1 * *'
+  workflow_dispatch:
+    inputs:
+      source_pbf_url:
+        description: "Geofabrik .osm.pbf URL to extract from"
+        required: false
+        default: "https://download.geofabrik.de/europe/germany-latest.osm.pbf"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install osmium-tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends osmium-tool
+          osmium --version
+
+      - name: Download OSM extract
+        run: |
+          URL="${{ github.event.inputs.source_pbf_url || 'https://download.geofabrik.de/europe/germany-latest.osm.pbf' }}"
+          echo "Downloading from $URL"
+          curl -fL --retry 3 --retry-delay 5 -o input.osm.pbf "$URL"
+          ls -lh input.osm.pbf
+
+      - name: Filter POI tags
+        # -R keeps each matched object AND the nodes referenced by matched
+        # ways, which we need so `osmium export` can produce geometries.
+        run: |
+          osmium tags-filter -R -O -o filtered.osm.pbf input.osm.pbf \
+            'n/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry' \
+            'w/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry' \
+            'n/amenity=drinking_water,water_point,toilets' \
+            'w/amenity=toilets' \
+            'n/drinking_water=yes' \
+            'n/man_made=water_tap'
+          ls -lh filtered.osm.pbf
+
+      - name: Export to GeoJSONSeq
+        run: |
+          osmium export -O -f geojsonseq -o filtered.geojsonseq filtered.osm.pbf
+          ls -lh filtered.geojsonseq
+
+      - name: Build SQLite DB
+        run: |
+          python3 scripts/build_poi_db.py filtered.geojsonseq pois.db
+          ls -lh pois.db
+
+      - name: Compress DB
+        run: |
+          gzip -9 -k pois.db
+          ls -lh pois.db.gz
+          sha256sum pois.db.gz > pois.db.gz.sha256
+          cat pois.db.gz.sha256
+
+      - name: Replace poi-data release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete any existing release so the asset URL stays stable and
+          # we don't accumulate old copies.
+          gh release delete poi-data --yes --cleanup-tag 2>/dev/null || true
+
+          DATE_STR="$(date -u +'%Y-%m-%d')"
+          gh release create poi-data \
+            --title "POI dataset ($DATE_STR)" \
+            --notes "Filtered OSM POI dataset (grocery / bakery / drinking water / toilets) for Germany. Rebuilt monthly." \
+            pois.db.gz pois.db.gz.sha256
