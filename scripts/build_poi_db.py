@@ -139,7 +139,11 @@ def main():
 
     inserted = 0
     skipped = 0
-    seen = set()  # (osm_type, osm_id) to dedupe way/relation double-counts
+    # Dedup by rounded (type, lat, lon) — catches cases where the same
+    # POI is emitted as both a tagged node and a polygon. Using the OSM
+    # id would be more precise but `osmium export` omits the id field
+    # from its feature objects by default.
+    seen = set()
 
     with open(input_path, "rb") as f:
         for raw in f:
@@ -170,7 +174,7 @@ def main():
             lat, lon = c
 
             osm_type, osm_id = parse_osm_id(feat.get("id", ""))
-            key = (osm_type, osm_id)
+            key = (t, round(lat, 5), round(lon, 5))
             if key in seen:
                 continue
             seen.add(key)
