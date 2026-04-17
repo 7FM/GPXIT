@@ -25,25 +25,6 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
     private val transitRepository = TransitRepository()
     private val prefsRepository = PrefsRepository(application)
 
-    private fun publishHomeRecommendation(option: ConnectionOption?) {
-        if (option == null) {
-            dev.gpxit.app.data.tracking.TripTrackingService
-                .publishHomeRecommendation(null)
-            return
-        }
-        val firstConn = option.connections.firstOrNull()
-        dev.gpxit.app.data.tracking.TripTrackingService.publishHomeRecommendation(
-            dev.gpxit.app.data.tracking.HomeRecommendation(
-                stationName = option.station.name,
-                cyclingTimeMinutes = option.cyclingTimeMinutes,
-                departureTime = firstConn?.departureTime,
-                arrivalHomeTime = option.bestArrivalHome,
-                line = firstConn?.line,
-                stationDistanceAlongRouteMeters = option.station.distanceAlongRouteMeters,
-            )
-        )
-    }
-
     private fun connectionProducts(productNames: Set<String>): Set<Product> {
         val products = EnumSet.noneOf(Product::class.java)
         for (name in productNames) {
@@ -159,14 +140,13 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                     .minByOrNull { it.bestArrivalHome!! }
                 bestOption?.isRecommended = true
 
-                // Push the winner into the tracking notification — no-op
-                // when the service isn't running.
-                publishHomeRecommendation(bestOption)
-
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     options = sorted
                 )
+                // GpxitApp publishes to the tracking notification — it
+                // also has to know about a user-chosen override, which
+                // lives at the app level, not here.
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,

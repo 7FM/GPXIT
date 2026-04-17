@@ -72,6 +72,19 @@ private suspend fun triggerDownload(
 
 data class GpxitDownloadState(val progress: Float = 0f, val label: String = "", val active: Boolean = false)
 
+private fun ConnectionOption.toHomeRecommendation():
+    dev.gpxit.app.data.tracking.HomeRecommendation {
+    val firstConn = connections.firstOrNull()
+    return dev.gpxit.app.data.tracking.HomeRecommendation(
+        stationName = station.name,
+        cyclingTimeMinutes = cyclingTimeMinutes,
+        departureTime = firstConn?.departureTime,
+        arrivalHomeTime = bestArrivalHome,
+        line = firstConn?.line,
+        stationDistanceAlongRouteMeters = station.distanceAlongRouteMeters,
+    )
+}
+
 private fun buildConnectionProducts(productNames: Set<String>): Set<Product> {
     val products = EnumSet.noneOf(Product::class.java)
     for (name in productNames) {
@@ -155,6 +168,12 @@ fun GpxitApp(
     var selectedStationInfo by remember { mutableStateOf<ConnectionOption?>(null) }
     var isLoadingStationInfo by remember { mutableStateOf(false) }
 
+    // User-chosen destination override — wins over the auto-picked
+    // recommendation coming out of DecisionViewModel. Set from the
+    // station-info bottom sheet on the map, cleared when the user
+    // imports a new route (so a stale choice can't leak across trips).
+    var userDestination by remember { mutableStateOf<ConnectionOption?>(null) }
+
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
     // POI dataset download state (shared with Settings for the manual button).
@@ -205,8 +224,22 @@ fun GpxitApp(
         val newId = currentRoute?.name
         if (newId != null && newId != lastRouteId && lastRouteId != null) {
             nearbyStations = emptyList()
+            userDestination = null
         }
         lastRouteId = newId
+    }
+
+    // Publish whichever recommendation should drive the tracking
+    // notification: the user's explicit override if set, otherwise
+    // the best auto-picked option. Running in the UI composition so
+    // DecisionViewModel doesn't have to know about the override.
+    val decisionOptionsState by decisionViewModel.uiState.collectAsState()
+    LaunchedEffect(userDestination, decisionOptionsState.options) {
+        val effective = userDestination
+            ?: decisionOptionsState.options.firstOrNull { it.isRecommended }
+        val rec = effective?.toHomeRecommendation()
+        dev.gpxit.app.data.tracking.TripTrackingService
+            .publishHomeRecommendation(rec)
     }
 
     // Resolve home station coords if missing
@@ -458,6 +491,8 @@ fun GpxitApp(
                     onStopTripTracking = {
                         dev.gpxit.app.data.tracking.TripTrackingService.stop(context)
                     },
+                    userDestinationStationId = userDestination?.station?.id,
+                    onSetDestination = { option -> userDestination = option },
                     onBack = { navController.popBackStack() }
                 )
             }

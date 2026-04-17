@@ -99,6 +99,8 @@ fun MapScreen(
     tripTrackingActive: Boolean = false,
     onStartTripTracking: () -> Unit = {},
     onStopTripTracking: () -> Unit = {},
+    userDestinationStationId: String? = null,
+    onSetDestination: (ConnectionOption?) -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -600,6 +602,25 @@ fun MapScreen(
                         userLat = userLocation?.latitude,
                         userLon = userLocation?.longitude
                     )
+                    // "Set as destination" / "Clear destination" — tells
+                    // the tracking notification to home in on THIS station
+                    // (and whichever train it's already loaded) instead
+                    // of the auto-picked best-arrival option.
+                    val isThisDestination = selectedStationInfo.station.id == userDestinationStationId
+                    OutlinedButton(
+                        onClick = {
+                            if (isThisDestination) onSetDestination(null)
+                            else onSetDestination(selectedStationInfo)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                    ) {
+                        Text(
+                            if (isThisDestination) "Clear destination"
+                            else "Set as destination"
+                        )
+                    }
                     ExtendedFloatingActionButton(
                         onClick = {
                             val station = selectedStationInfo.station

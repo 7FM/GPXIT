@@ -179,10 +179,11 @@ class TripTrackingService : Service() {
         val title = snap?.routeName?.takeIf { it.isNotBlank() } ?: "Trip tracking"
         val primary = snapshotLine(snap, rec)
         val home = homeLine(rec)
-        // Collapsed view shows the most time-sensitive line. If we've
-        // got a next-train recommendation surface that, otherwise the
-        // ride-progress line.
-        val contentText = home ?: primary
+        // Primary line already names the station and cycling ETA, so it
+        // is the single most useful glance — keep it as the collapsed
+        // view. Expanded (BigTextStyle) adds the train details so both
+        // pieces are visible when the user pulls the notification down.
+        val contentText = primary
         val bigText = if (home != null) "$primary\n$home" else primary
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -225,20 +226,31 @@ class TripTrackingService : Service() {
     }
 
     /**
-     * Format the one-line summary of the next connection home.
-     * Example: "🏠 Heidelberg Hbf 14:32 RE5 → home 15:47"
+     * Format the one-line summary of the next connection home. The
+     * station name is already named in [snapshotLine] so we don't
+     * repeat it here — the second line is purely the train details.
+     *
+     * Examples:
+     *   "Catch RE5 at 14:32, home 15:47"
+     *   "Catch RE5 at 14:32 (in 12 min), home 15:47"
+     *   "Catch train at 14:32"   (line/home unknown)
      */
     private fun homeLine(rec: HomeRecommendation?): String? {
         if (rec == null) return null
-        val depStr = rec.departureTime?.let { formatClock(it) }
-        val arrStr = rec.arrivalHomeTime?.let { formatClock(it) }
-        val sb = StringBuilder()
-        sb.append("Home via ").append(rec.stationName)
-        if (depStr != null) {
-            sb.append(' ').append(depStr)
-            rec.line?.takeIf { it.isNotBlank() }?.let { sb.append(' ').append(it) }
+        val depTime = rec.departureTime
+        val arrTime = rec.arrivalHomeTime
+        val line = rec.line?.takeIf { it.isNotBlank() }
+
+        val sb = StringBuilder("Catch ")
+        sb.append(line ?: "train")
+        if (depTime != null) {
+            sb.append(" at ").append(formatClock(depTime))
+            // Wait-from-now in minutes is a small nudge — tells you
+            // whether to sprint or stroll without doing clock math.
+            val waitMin = Duration.between(Instant.now(), depTime).toMinutes().toInt()
+            if (waitMin in 1..59) sb.append(" (in ").append(waitMin).append(" min)")
         }
-        if (arrStr != null) sb.append(" \u2192 ").append(arrStr)
+        if (arrTime != null) sb.append(", home ").append(formatClock(arrTime))
         return sb.toString()
     }
 
