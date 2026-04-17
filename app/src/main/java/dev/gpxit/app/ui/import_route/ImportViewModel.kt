@@ -6,8 +6,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.gpxit.app.data.RouteStorage
 import dev.gpxit.app.data.gpx.GpxParser
+import dev.gpxit.app.data.poi.PoiRepository
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
+import dev.gpxit.app.domain.Poi
+import dev.gpxit.app.domain.PoiType
 import dev.gpxit.app.domain.RouteInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +22,7 @@ import kotlinx.coroutines.withContext
 class ImportViewModel(application: Application) : AndroidViewModel(application) {
 
     private val transitRepository = TransitRepository()
+    private val poiRepository = PoiRepository()
     private val prefsRepository = PrefsRepository(application)
     private val routeStorage = RouteStorage(application)
 
@@ -27,6 +31,10 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _routeInfo = MutableStateFlow<RouteInfo?>(null)
     val routeInfo: StateFlow<RouteInfo?> = _routeInfo
+
+    /** Cached POIs along the currently loaded route (all types). */
+    private val _routePois = MutableStateFlow<List<Poi>>(emptyList())
+    val routePois: StateFlow<List<Poi>> = _routePois
 
     init {
         // Restore previously saved route on startup
@@ -40,13 +48,18 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                         val stations = withContext(Dispatchers.IO) {
                             routeStorage.loadStations()
                         }
+                        val cachedPois = withContext(Dispatchers.IO) {
+                            routeStorage.loadPois()
+                        }
                         val routeWithStations = route.copy(stations = stations)
                         _routeInfo.value = routeWithStations
+                        _routePois.value = cachedPois
                         _uiState.value = ImportUiState(
                             routeName = route.name,
                             pointCount = route.points.size,
                             totalDistanceKm = route.totalDistanceMeters / 1000.0,
                             stationCount = stations.size,
+                            poiCount = cachedPois.size,
                             stationDiscoveryStatus = "${stations.size} stations loaded"
                         )
                     }
@@ -81,11 +94,13 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
-                // Save GPX to internal storage and clear old nearby stations
+                // Save GPX to internal storage and clear stale caches
                 withContext(Dispatchers.IO) {
                     routeStorage.saveGpx(bytes)
                     routeStorage.clearNearbyStations()
+                    routeStorage.clearPois()
                 }
+                _routePois.value = emptyList()
 
                 _uiState.value = _uiState.value.copy(
                     isLoading = true,
@@ -113,9 +128,35 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                 _routeInfo.value = routeWithStations
 
                 _uiState.value = _uiState.value.copy(
-                    isLoading = false,
                     stationCount = stations.size,
-                    stationDiscoveryStatus = "${stations.size} stations found"
+                    stationDiscoveryStatus = "${stations.size} stations found — discovering POIs\u2026"
+                )
+
+                // Prefetch all POI types along the route so the map can serve
+                // them offline and layer toggles become instant.
+                val pois = try {
+                    poiRepository.fetchPoisForRoute(
+                        points = route.points,
+                        types = setOf(
+                            PoiType.GROCERY,
+                            PoiType.BAKERY,
+                            PoiType.WATER,
+                            PoiType.TOILET
+                        )
+                    )
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                withContext(Dispatchers.IO) {
+                    routeStorage.savePois(pois)
+                }
+                _routePois.value = pois
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    poiCount = pois.size,
+                    stationDiscoveryStatus =
+                        "${stations.size} stations, ${pois.size} POIs ready"
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -134,5 +175,6 @@ data class ImportUiState(
     val pointCount: Int = 0,
     val totalDistanceKm: Double = 0.0,
     val stationCount: Int = 0,
+    val poiCount: Int = 0,
     val stationDiscoveryStatus: String? = null
 )
