@@ -27,8 +27,12 @@ class PrefsRepository(private val context: Context) {
         val CONNECTION_PRODUCTS = stringSetPreferencesKey("connection_products")
         val MIN_WAIT_BUFFER_MINUTES = intPreferencesKey("min_wait_buffer_minutes")
         val MAX_WAIT_MINUTES = intPreferencesKey("max_wait_minutes")
-        val USE_DARK_MAP = booleanPreferencesKey("use_dark_map")
         val ELEVATION_AWARE_TIME = booleanPreferencesKey("elevation_aware_time")
+        val SHOW_ELEVATION_GRAPH = booleanPreferencesKey("show_elevation_graph")
+        val POI_GROCERY = booleanPreferencesKey("poi_grocery")
+        val POI_WATER = booleanPreferencesKey("poi_water")
+        val POI_TOILET = booleanPreferencesKey("poi_toilet")
+        val MAX_STATIONS_TO_CHECK = intPreferencesKey("max_stations_to_check")
 
         val DEFAULT_PRODUCTS = setOf("HIGH_SPEED_TRAIN", "REGIONAL_TRAIN", "SUBURBAN_TRAIN")
         val DEFAULT_CONNECTION_PRODUCTS = setOf(
@@ -48,8 +52,12 @@ class PrefsRepository(private val context: Context) {
         val connectionProducts: Set<String> = DEFAULT_CONNECTION_PRODUCTS,
         val minWaitBufferMinutes: Int = 0,
         val maxWaitMinutes: Int = 0,  // 0 = no limit
-        val useDarkMap: Boolean = false,
-        val elevationAwareTime: Boolean = true
+        val elevationAwareTime: Boolean = true,
+        val showElevationGraph: Boolean = true,
+        val poiGrocery: Boolean = false,
+        val poiWater: Boolean = false,
+        val poiToilet: Boolean = false,
+        val maxStationsToCheck: Int = 8
     )
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -65,8 +73,12 @@ class PrefsRepository(private val context: Context) {
             connectionProducts = prefs[CONNECTION_PRODUCTS] ?: DEFAULT_CONNECTION_PRODUCTS,
             minWaitBufferMinutes = prefs[MIN_WAIT_BUFFER_MINUTES] ?: 0,
             maxWaitMinutes = prefs[MAX_WAIT_MINUTES] ?: 0,
-            useDarkMap = prefs[USE_DARK_MAP] ?: false,
-            elevationAwareTime = prefs[ELEVATION_AWARE_TIME] ?: true
+            elevationAwareTime = prefs[ELEVATION_AWARE_TIME] ?: true,
+            showElevationGraph = prefs[SHOW_ELEVATION_GRAPH] ?: true,
+            poiGrocery = prefs[POI_GROCERY] ?: false,
+            poiWater = prefs[POI_WATER] ?: false,
+            poiToilet = prefs[POI_TOILET] ?: false,
+            maxStationsToCheck = prefs[MAX_STATIONS_TO_CHECK] ?: 8
         )
     }
 
@@ -107,11 +119,27 @@ class PrefsRepository(private val context: Context) {
         context.dataStore.edit { it[MAX_WAIT_MINUTES] = minutes }
     }
 
-    suspend fun setUseDarkMap(use: Boolean) {
-        context.dataStore.edit { it[USE_DARK_MAP] = use }
-    }
-
     suspend fun setElevationAwareTime(enabled: Boolean) {
         context.dataStore.edit { it[ELEVATION_AWARE_TIME] = enabled }
+    }
+
+    suspend fun setShowElevationGraph(show: Boolean) {
+        context.dataStore.edit { it[SHOW_ELEVATION_GRAPH] = show }
+    }
+
+    suspend fun setPoiGrocery(on: Boolean) {
+        context.dataStore.edit { it[POI_GROCERY] = on }
+    }
+
+    suspend fun setPoiWater(on: Boolean) {
+        context.dataStore.edit { it[POI_WATER] = on }
+    }
+
+    suspend fun setPoiToilet(on: Boolean) {
+        context.dataStore.edit { it[POI_TOILET] = on }
+    }
+
+    suspend fun setMaxStationsToCheck(n: Int) {
+        context.dataStore.edit { it[MAX_STATIONS_TO_CHECK] = n }
     }
 }

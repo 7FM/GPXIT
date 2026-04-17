@@ -81,8 +81,24 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setElevationAwareTime(enabled) }
     }
 
-    fun setUseDarkMap(use: Boolean) {
-        viewModelScope.launch { prefsRepository.setUseDarkMap(use) }
+    fun setShowElevationGraph(show: Boolean) {
+        viewModelScope.launch { prefsRepository.setShowElevationGraph(show) }
+    }
+
+    fun setPoiGrocery(on: Boolean) {
+        viewModelScope.launch { prefsRepository.setPoiGrocery(on) }
+    }
+
+    fun setPoiWater(on: Boolean) {
+        viewModelScope.launch { prefsRepository.setPoiWater(on) }
+    }
+
+    fun setPoiToilet(on: Boolean) {
+        viewModelScope.launch { prefsRepository.setPoiToilet(on) }
+    }
+
+    fun setMaxStationsToCheck(n: Int) {
+        viewModelScope.launch { prefsRepository.setMaxStationsToCheck(n) }
     }
 
     fun toggleConnectionProduct(product: String) {

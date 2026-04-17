@@ -77,8 +77,9 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                 val now = Instant.now()
                 val products = connectionProducts(prefs.connectionProducts)
 
-                // Limit to next 8 stations to keep query time reasonable
-                val stationsToQuery = stationsAhead.take(8)
+                // Limit to the user-configured number of stations ahead to
+                // keep the parallel-fan-out bounded.
+                val stationsToQuery = stationsAhead.take(prefs.maxStationsToCheck.coerceAtLeast(1))
 
                 // Query connections for each station in parallel
                 val options = stationsToQuery.map { station ->

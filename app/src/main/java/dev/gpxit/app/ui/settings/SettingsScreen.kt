@@ -59,7 +59,8 @@ fun SettingsScreen(
     onSetElevationAwareTime: (Boolean) -> Unit,
     onSetMinWaitBuffer: (Int) -> Unit,
     onSetMaxWaitMinutes: (Int) -> Unit,
-    onSetUseDarkMap: (Boolean) -> Unit,
+    onSetMaxStationsToCheck: (Int) -> Unit,
+    onSetShowElevationGraph: (Boolean) -> Unit,
     stationSuggestions: List<TransitRepository.StationSuggestion>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -182,7 +183,9 @@ fun SettingsScreen(
             )
             Slider(
                 value = prefs.minWaitBufferMinutes.toFloat(),
-                onValueChange = { onSetMinWaitBuffer(it.toInt()) },
+                onValueChange = { f ->
+                    onSetMinWaitBuffer(kotlin.math.round(f).toInt().coerceIn(0, 30))
+                },
                 valueRange = 0f..30f,
                 steps = 29,
                 modifier = Modifier.fillMaxWidth()
@@ -205,9 +208,39 @@ fun SettingsScreen(
             )
             Slider(
                 value = prefs.maxWaitMinutes.toFloat(),
-                onValueChange = { onSetMaxWaitMinutes(it.toInt()) },
+                onValueChange = { f ->
+                    val snapped = (kotlin.math.round(f / 15f).toInt() * 15)
+                        .coerceIn(0, 120)
+                    onSetMaxWaitMinutes(snapped)
+                },
                 valueRange = 0f..120f,
                 steps = 7, // 0, 15, 30, 45, 60, 75, 90, 105, 120
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Max stations to check for "Take me home"
+            Text("Exit points to check", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "${prefs.maxStationsToCheck}",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Text(
+                text = "How many upcoming stations \"Take me home\" considers",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Slider(
+                value = prefs.maxStationsToCheck.toFloat(),
+                onValueChange = { f ->
+                    onSetMaxStationsToCheck(
+                        kotlin.math.round(f).toInt().coerceIn(4, 20)
+                    )
+                },
+                valueRange = 4f..20f,
+                steps = 15, // 4..20 inclusive
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -222,7 +255,9 @@ fun SettingsScreen(
             )
             Slider(
                 value = prefs.avgSpeedKmh.toFloat(),
-                onValueChange = { onSetSpeed(it.toDouble()) },
+                onValueChange = { f ->
+                    onSetSpeed(kotlin.math.round(f).toDouble().coerceIn(10.0, 35.0))
+                },
                 valueRange = 10f..35f,
                 steps = 24,
                 modifier = Modifier.fillMaxWidth()
@@ -265,7 +300,11 @@ fun SettingsScreen(
             )
             Slider(
                 value = prefs.searchRadiusMeters.toFloat(),
-                onValueChange = { onSetSearchRadius(it.toInt()) },
+                onValueChange = { f ->
+                    val snapped = (kotlin.math.round(f / 500f).toInt() * 500)
+                        .coerceIn(500, 10000)
+                    onSetSearchRadius(snapped)
+                },
                 valueRange = 500f..10000f,
                 steps = 18,
                 modifier = Modifier.fillMaxWidth()
@@ -273,8 +312,8 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Dark map tiles
-            Text("Map Appearance", style = MaterialTheme.typography.titleMedium)
+            // Map
+            Text("Map", style = MaterialTheme.typography.titleMedium)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -282,10 +321,10 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Dark map tiles", style = MaterialTheme.typography.bodyMedium)
+                Text("Show elevation graph", style = MaterialTheme.typography.bodyMedium)
                 Switch(
-                    checked = prefs.useDarkMap,
-                    onCheckedChange = { onSetUseDarkMap(it) }
+                    checked = prefs.showElevationGraph,
+                    onCheckedChange = { onSetShowElevationGraph(it) }
                 )
             }
         }
