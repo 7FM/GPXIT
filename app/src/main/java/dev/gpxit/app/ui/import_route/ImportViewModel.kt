@@ -101,6 +101,11 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                     routeStorage.clearPois()
                 }
                 _routePois.value = emptyList()
+                // Old "take me home" recommendation is tied to the prior
+                // route — drop it so the tracking notification doesn't
+                // advertise a train the user won't be near.
+                dev.gpxit.app.data.tracking.TripTrackingService
+                    .publishHomeRecommendation(null)
 
                 _uiState.value = _uiState.value.copy(
                     isLoading = true,

@@ -22,6 +22,10 @@ import dev.gpxit.app.data.gpx.findClosestPointIndex
 import dev.gpxit.app.data.location.LocationService
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.domain.RouteInfo
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,8 +52,10 @@ class TripTrackingService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var locationJob: Job? = null
+    private var recJob: Job? = null
     private var route: RouteInfo? = null
     private var avgSpeedKmh: Double = 18.0
+    private var currentSnapshot: TripSnapshot? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -68,8 +74,12 @@ class TripTrackingService : Service() {
     private fun startTracking() {
         if (locationJob?.isActive == true) return
         createChannel()
-        startInForeground(buildNotification(null))
-        _state.value = TripState(isActive = true, snapshot = null)
+        startInForeground(buildNotification(null, null))
+        _state.value = TripState(
+            isActive = true,
+            snapshot = null,
+            homeRecommendation = activeHomeRecommendation()
+        )
 
         locationJob = scope.launch {
             // Load persisted route + avg speed off the main thread.
@@ -93,18 +103,44 @@ class TripTrackingService : Service() {
                 .locationUpdates(intervalMs = 5_000)
                 .collect { loc -> handleLocation(loc) }
         }
+
+        // Mirror the home-recommendation flow so the notification picks
+        // up "Take me home" results without waiting for the next GPS fix.
+        recJob?.cancel()
+        recJob = scope.launch {
+            _homeRecommendation.collect { rec ->
+                _state.value = _state.value.copy(homeRecommendation = rec)
+                updateNotification(currentSnapshot, rec)
+            }
+        }
     }
 
     private fun handleLocation(loc: Location) {
         val snap = computeSnapshot(route, loc, avgSpeedKmh)
-        _state.value = TripState(isActive = true, snapshot = snap)
-        updateNotification(snap)
+        currentSnapshot = snap
+        val rec = activeHomeRecommendation()
+        _state.value = TripState(isActive = true, snapshot = snap, homeRecommendation = rec)
+        updateNotification(snap, rec)
+    }
+
+    private fun activeHomeRecommendation(): HomeRecommendation? {
+        val rec = _homeRecommendation.value ?: return null
+        // Drop a stale recommendation once the train has already left.
+        val dep = rec.departureTime ?: return rec
+        return if (Instant.now().isAfter(dep.plusSeconds(60))) null else rec
     }
 
     private fun stopTracking() {
         locationJob?.cancel()
         locationJob = null
-        _state.value = TripState(isActive = false, snapshot = null)
+        recJob?.cancel()
+        recJob = null
+        currentSnapshot = null
+        _state.value = TripState(
+            isActive = false,
+            snapshot = null,
+            homeRecommendation = null
+        )
     }
 
     private fun startInForeground(notification: Notification) {
@@ -120,7 +156,10 @@ class TripTrackingService : Service() {
         }
     }
 
-    private fun buildNotification(snap: TripSnapshot?): Notification {
+    private fun buildNotification(
+        snap: TripSnapshot?,
+        rec: HomeRecommendation?
+    ): Notification {
         val stopIntent = Intent(this, TripTrackingService::class.java).apply {
             action = ACTION_STOP
         }
@@ -138,13 +177,19 @@ class TripTrackingService : Service() {
         )
 
         val title = snap?.routeName?.takeIf { it.isNotBlank() } ?: "Trip tracking"
-        val text = snapshotLine(snap)
+        val primary = snapshotLine(snap)
+        val home = homeLine(rec)
+        // Collapsed view shows the most time-sensitive line. If we've
+        // got a next-train recommendation surface that, otherwise the
+        // ride-progress line.
+        val contentText = home ?: primary
+        val bigText = if (home != null) "$primary\n$home" else primary
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(openPending)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPending)
             .setOngoing(true)
@@ -167,7 +212,25 @@ class TripTrackingService : Service() {
         return dist + station + offRoute
     }
 
-    private fun updateNotification(snap: TripSnapshot?) {
+    /**
+     * Format the one-line summary of the next connection home.
+     * Example: "🏠 Heidelberg Hbf 14:32 RE5 → home 15:47"
+     */
+    private fun homeLine(rec: HomeRecommendation?): String? {
+        if (rec == null) return null
+        val depStr = rec.departureTime?.let { formatClock(it) }
+        val arrStr = rec.arrivalHomeTime?.let { formatClock(it) }
+        val sb = StringBuilder()
+        sb.append("Home via ").append(rec.stationName)
+        if (depStr != null) {
+            sb.append(' ').append(depStr)
+            rec.line?.takeIf { it.isNotBlank() }?.let { sb.append(' ').append(it) }
+        }
+        if (arrStr != null) sb.append(" \u2192 ").append(arrStr)
+        return sb.toString()
+    }
+
+    private fun updateNotification(snap: TripSnapshot?, rec: HomeRecommendation?) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // Gate on notification permission — on API 33+ the app needs it and
         // the user may have denied; without it, notify() silently no-ops.
@@ -176,7 +239,7 @@ class TripTrackingService : Service() {
                 this, Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         if (!canPost) return
-        nm.notify(NOTIFICATION_ID, buildNotification(snap))
+        nm.notify(NOTIFICATION_ID, buildNotification(snap, rec))
     }
 
     private fun createChannel() {
@@ -210,6 +273,18 @@ class TripTrackingService : Service() {
         /** Live service state — safe to observe from the UI process. */
         val state: StateFlow<TripState> = _state
 
+        // Published by DecisionViewModel after "Take me home" finishes.
+        // Kept at companion scope so DecisionViewModel doesn't need to
+        // know whether the service is running — the service reads it
+        // whenever it refreshes the notification.
+        private val _homeRecommendation = MutableStateFlow<HomeRecommendation?>(null)
+        val homeRecommendation: StateFlow<HomeRecommendation?> = _homeRecommendation
+
+        /** Push the recommended "get home" train into the notification. */
+        fun publishHomeRecommendation(rec: HomeRecommendation?) {
+            _homeRecommendation.value = rec
+        }
+
         /** Kick off tracking from anywhere in the app. */
         fun start(context: Context) {
             val i = Intent(context, TripTrackingService::class.java).apply {
@@ -237,6 +312,7 @@ class TripTrackingService : Service() {
 data class TripState(
     val isActive: Boolean = false,
     val snapshot: TripSnapshot? = null,
+    val homeRecommendation: HomeRecommendation? = null,
 )
 
 data class TripSnapshot(
@@ -247,6 +323,24 @@ data class TripSnapshot(
     val distanceFromRouteMeters: Double,
     val nextStationLabel: String?,
 )
+
+/**
+ * Snapshot of the "take me home" result surfaced to the tracking
+ * notification. Kept flat/primitive so it can be published from any
+ * caller without dragging the full ConnectionOption graph along.
+ */
+data class HomeRecommendation(
+    val stationName: String,
+    val cyclingTimeMinutes: Int,
+    val departureTime: Instant?,
+    val arrivalHomeTime: Instant?,
+    val line: String?,
+)
+
+private val clockFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+
+private fun formatClock(t: Instant): String = clockFormatter.format(t)
 
 /** Turn a live location + route into a human-readable progress snapshot. */
 internal fun computeSnapshot(
