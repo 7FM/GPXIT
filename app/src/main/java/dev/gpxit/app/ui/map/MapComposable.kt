@@ -825,34 +825,35 @@ fun OsmMapView(
                 }
 
                 // Navigation overlay — a bright highlighted path from
-                // the user's current position along the GPX up to the
-                // point closest to the destination station, then a
-                // straight branch off-route to the station itself.
-                // Drawn on top of the route polyline so it reads as
-                // "follow this".
+                // the user's current position to the destination. If
+                // the natural branch-off on the GPX is still ahead of
+                // the rider, we follow the GPX up to that point and
+                // then hand off to BRouter; if it's already behind,
+                // we skip the GPX entirely (would be a pointless
+                // U-turn) and let BRouter route directly from the
+                // rider's position.
                 val dst = destinationStation
                 if (navigationActive && dst != null && userLocation != null) {
                     val pts = routeInfo.points
                     val (userIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
                         pts, userLocation.latitude, userLocation.longitude
                     )
-                    val (dstIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+                    val (branchIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
                         pts, dst.lat, dst.lon
                     )
-                    val range = if (userIdx <= dstIdx) userIdx..dstIdx
-                    else dstIdx..userIdx  // destination is behind — draw anyway
-                    val navPoints = ArrayList<GeoPoint>(range.count() + 2)
-                    // Short onto-route segment so the user sees "head to
-                    // the polyline from here".
+                    val navPoints = ArrayList<GeoPoint>()
                     navPoints += GeoPoint(userLocation.latitude, userLocation.longitude)
-                    for (i in range) {
-                        navPoints += GeoPoint(pts[i].lat, pts[i].lon)
+                    if (branchIdx >= userIdx) {
+                        // Branch-off is ahead — follow the GPX up to it.
+                        for (i in userIdx..branchIdx) {
+                            navPoints += GeoPoint(pts[i].lat, pts[i].lon)
+                        }
                     }
-                    // Last-mile off-route segment — only drawn when the
-                    // BRouter-computed polyline is available. Straight
-                    // lines across buildings/rivers are misleading, so
-                    // we refuse to guess and simply leave the branch
-                    // off until a real route is ready.
+                    // BRouter last-mile — only drawn when the polyline
+                    // is available. Straight lines across buildings or
+                    // rivers are misleading, so we refuse to guess and
+                    // simply leave the branch off until the real route
+                    // is ready.
                     if (!navigationLastMile.isNullOrEmpty()) {
                         navPoints += navigationLastMile
                     }

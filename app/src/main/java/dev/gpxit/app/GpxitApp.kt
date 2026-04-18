@@ -260,10 +260,16 @@ fun GpxitApp(
     }
 
     // Compute the bike-aware last mile whenever nav turns on or the
-    // destination changes. The branch-off runs from the GPX point
-    // closest to the station to the station itself, so it's
-    // independent of the user's current position — no need to
-    // recompute on every location update.
+    // destination changes. The origin depends on whether the rider
+    // has already passed the natural branch-off point on the GPX:
+    //   - before it: route from that GPX point to the station, so the
+    //     rider follows the GPX up to the branch then peels off;
+    //   - past it:   route from the rider's current position to the
+    //     station directly, skipping the GPX so we don't prescribe a
+    //     U-turn back to a branch-off they've already passed.
+    // We fix the origin at nav-start; if the rider later crosses the
+    // branch-off mid-ride the polyline will look stale and they can
+    // toggle nav off/on to refresh.
     LaunchedEffect(navigationActive, userDestination, currentRoute) {
         if (!navigationActive) {
             navigationLastMile = null
@@ -277,12 +283,23 @@ fun GpxitApp(
             navigationLastMile = null
             return@LaunchedEffect
         }
-        val (idx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+        val (branchIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
             route.points, dst.lat, dst.lon
         )
-        val branchFrom = route.points[idx]
+        val loc = userLocation
+        val userIdx = if (loc != null) {
+            dev.gpxit.app.data.gpx.findClosestPointIndex(
+                route.points, loc.latitude, loc.longitude
+            ).first
+        } else 0
+        val origin = if (loc != null && userIdx > branchIdx) {
+            GeoPoint(loc.latitude, loc.longitude)
+        } else {
+            val p = route.points[branchIdx]
+            GeoPoint(p.lat, p.lon)
+        }
         navigationLastMile = brouterClient.routeBike(
-            start = GeoPoint(branchFrom.lat, branchFrom.lon),
+            start = origin,
             end = GeoPoint(dst.lat, dst.lon)
         )
     }
