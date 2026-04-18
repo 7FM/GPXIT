@@ -62,11 +62,47 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                             poiCount = cachedPois.size,
                             stationDiscoveryStatus = "${stations.size} stations loaded"
                         )
+                        // Re-query the POI DB for the route corridor in
+                        // the background. Covers two cases without any
+                        // user action: (1) the cache was written before
+                        // a new POI category existed in the app (so the
+                        // on-disk JSON has no rows for it), and (2) the
+                        // user has updated the POI DB since the last
+                        // import and we want the fresh data.
+                        refreshPoisForRoute(routeWithStations)
                     }
                 } catch (_: Exception) {
                     // Corrupted cache, ignore
                 }
             }
+        }
+    }
+
+    /**
+     * Re-run the POI corridor query against the local DB for [route]
+     * and update the in-memory cache + on-disk JSON. No-op when the
+     * POI dataset isn't downloaded yet.
+     */
+    fun refreshPoisForRoute(route: RouteInfo) {
+        viewModelScope.launch {
+            if (!poiDatabase.isAvailable()) return@launch
+            val pois = try {
+                poiDatabase.queryForRoute(
+                    points = route.points,
+                    types = setOf(
+                        PoiType.GROCERY,
+                        PoiType.BAKERY,
+                        PoiType.WATER,
+                        PoiType.TOILET,
+                        PoiType.BIKE_REPAIR
+                    )
+                )
+            } catch (_: Exception) {
+                return@launch
+            }
+            withContext(Dispatchers.IO) { routeStorage.savePois(pois) }
+            _routePois.value = pois
+            _uiState.value = _uiState.value.copy(poiCount = pois.size)
         }
     }
 

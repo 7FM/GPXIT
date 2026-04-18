@@ -236,6 +236,12 @@ fun GpxitApp(
                 }
                 if (ok) {
                     prefsRepository.setPoiDbLastUpdate(System.currentTimeMillis())
+                    // Refresh the route's POI cache immediately so any
+                    // new categories the updated DB introduced (e.g.
+                    // bike-repair) show up without re-importing.
+                    importViewModel.routeInfo.value?.let {
+                        importViewModel.refreshPoisForRoute(it)
+                    }
                 }
             }
         }
