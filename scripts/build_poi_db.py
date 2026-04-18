@@ -38,6 +38,7 @@ TYPE_GROCERY = 0
 TYPE_BAKERY = 1
 TYPE_WATER = 2
 TYPE_TOILET = 3
+TYPE_BIKE_REPAIR = 4
 
 
 def classify(props):
@@ -57,6 +58,14 @@ def classify(props):
         return TYPE_WATER
     if amenity == "toilets":
         return TYPE_TOILET
+    if amenity == "bicycle_repair_station":
+        return TYPE_BIKE_REPAIR
+    # A bike shop that also offers repairs — common OSM tagging is
+    # shop=bicycle with service:bicycle:repair=yes. We catch both the
+    # bare shop=bicycle (most have repair service anyway) and the
+    # explicit service tag.
+    if shop == "bicycle":
+        return TYPE_BIKE_REPAIR
     return None
 
 

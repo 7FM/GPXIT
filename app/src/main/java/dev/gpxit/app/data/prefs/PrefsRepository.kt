@@ -33,6 +33,7 @@ class PrefsRepository(private val context: Context) {
         val POI_GROCERY = booleanPreferencesKey("poi_grocery")
         val POI_WATER = booleanPreferencesKey("poi_water")
         val POI_TOILET = booleanPreferencesKey("poi_toilet")
+        val POI_BIKE_REPAIR = booleanPreferencesKey("poi_bike_repair")
         val MAX_STATIONS_TO_CHECK = intPreferencesKey("max_stations_to_check")
         val POI_DB_LAST_UPDATE_MS = longPreferencesKey("poi_db_last_update_ms")
         val POI_DB_AUTO_UPDATE = booleanPreferencesKey("poi_db_auto_update")
@@ -61,6 +62,7 @@ class PrefsRepository(private val context: Context) {
         val poiGrocery: Boolean = false,
         val poiWater: Boolean = false,
         val poiToilet: Boolean = false,
+        val poiBikeRepair: Boolean = false,
         val maxStationsToCheck: Int = 8,
         /** Epoch ms of the last successful POI database download; 0 if none. */
         val poiDbLastUpdateMs: Long = 0L,
@@ -93,6 +95,7 @@ class PrefsRepository(private val context: Context) {
             poiGrocery = prefs[POI_GROCERY] ?: false,
             poiWater = prefs[POI_WATER] ?: false,
             poiToilet = prefs[POI_TOILET] ?: false,
+            poiBikeRepair = prefs[POI_BIKE_REPAIR] ?: false,
             maxStationsToCheck = prefs[MAX_STATIONS_TO_CHECK] ?: 8,
             poiDbLastUpdateMs = prefs[POI_DB_LAST_UPDATE_MS] ?: 0L,
             poiDbAutoUpdate = prefs[POI_DB_AUTO_UPDATE] ?: true,
@@ -155,6 +158,10 @@ class PrefsRepository(private val context: Context) {
 
     suspend fun setPoiToilet(on: Boolean) {
         context.dataStore.edit { it[POI_TOILET] = on }
+    }
+
+    suspend fun setPoiBikeRepair(on: Boolean) {
+        context.dataStore.edit { it[POI_BIKE_REPAIR] = on }
     }
 
     suspend fun setMaxStationsToCheck(n: Int) {

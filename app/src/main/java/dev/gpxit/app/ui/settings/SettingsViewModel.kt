@@ -97,6 +97,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setPoiToilet(on) }
     }
 
+    fun setPoiBikeRepair(on: Boolean) {
+        viewModelScope.launch { prefsRepository.setPoiBikeRepair(on) }
+    }
+
     fun setMaxStationsToCheck(n: Int) {
         viewModelScope.launch { prefsRepository.setMaxStationsToCheck(n) }
     }

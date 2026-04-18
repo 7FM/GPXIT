@@ -48,10 +48,10 @@ jobs:
         # what we want — so we deliberately don't pass it.
         run: |
           osmium tags-filter -O -o filtered.osm.pbf input.osm.pbf \
-            'n/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry' \
-            'w/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry' \
-            'n/amenity=drinking_water,water_point,toilets' \
-            'w/amenity=toilets' \
+            'n/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry,bicycle' \
+            'w/shop=supermarket,convenience,grocery,general,kiosk,deli,greengrocer,food,farm,butcher,organic,health_food,frozen_food,bakery,pastry,bicycle' \
+            'n/amenity=drinking_water,water_point,toilets,bicycle_repair_station' \
+            'w/amenity=toilets,bicycle_repair_station' \
             'n/drinking_water=yes' \
             'n/man_made=water_tap'
           ls -lh filtered.osm.pbf

@@ -328,10 +328,11 @@ private fun createPoiBitmap(type: dev.gpxit.app.domain.PoiType): Bitmap {
     canvas.drawCircle(cx, cx, r + 2f, borderPaint)
 
     val (fillColor, label) = when (type) {
-        dev.gpxit.app.domain.PoiType.GROCERY -> Color.rgb(46, 125, 50) to "G"    // green
-        dev.gpxit.app.domain.PoiType.BAKERY -> Color.rgb(198, 124, 0) to "B"     // amber
-        dev.gpxit.app.domain.PoiType.WATER -> Color.rgb(2, 136, 209) to "W"      // blue
-        dev.gpxit.app.domain.PoiType.TOILET -> Color.rgb(94, 53, 177) to "WC"    // purple
+        dev.gpxit.app.domain.PoiType.GROCERY -> Color.rgb(46, 125, 50) to "G"      // green
+        dev.gpxit.app.domain.PoiType.BAKERY -> Color.rgb(198, 124, 0) to "B"       // amber
+        dev.gpxit.app.domain.PoiType.WATER -> Color.rgb(2, 136, 209) to "W"        // blue
+        dev.gpxit.app.domain.PoiType.TOILET -> Color.rgb(94, 53, 177) to "WC"      // purple
+        dev.gpxit.app.domain.PoiType.BIKE_REPAIR -> Color.rgb(230, 81, 0) to "R"   // deep orange
     }
     val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = fillColor
@@ -604,6 +605,7 @@ fun OsmMapView(
     val poiBakeryBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.BAKERY) }
     val poiWaterBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.WATER) }
     val poiToiletBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.TOILET) }
+    val poiBikeRepairBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.BIKE_REPAIR) }
 
     // Track content overlays separately from persistent ones
     val contentOverlays = remember { mutableListOf<Overlay>() }
@@ -941,13 +943,14 @@ fun OsmMapView(
                 contentOverlays.add(marker)
             }
 
-            // POI markers (grocery, bakery, water, toilet)
+            // POI markers (grocery, bakery, water, toilet, bike repair)
             for (poi in pois) {
                 val bmp = when (poi.type) {
                     dev.gpxit.app.domain.PoiType.GROCERY -> poiGroceryBmp
                     dev.gpxit.app.domain.PoiType.BAKERY -> poiBakeryBmp
                     dev.gpxit.app.domain.PoiType.WATER -> poiWaterBmp
                     dev.gpxit.app.domain.PoiType.TOILET -> poiToiletBmp
+                    dev.gpxit.app.domain.PoiType.BIKE_REPAIR -> poiBikeRepairBmp
                 }
                 val marker = Marker(map).apply {
                     position = GeoPoint(poi.lat, poi.lon)
@@ -956,6 +959,7 @@ fun OsmMapView(
                         dev.gpxit.app.domain.PoiType.BAKERY -> "Bakery"
                         dev.gpxit.app.domain.PoiType.WATER -> "Drinking water"
                         dev.gpxit.app.domain.PoiType.TOILET -> "Toilet"
+                        dev.gpxit.app.domain.PoiType.BIKE_REPAIR -> "Bike repair"
                     }
                     icon = BitmapDrawable(context.resources, bmp)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)

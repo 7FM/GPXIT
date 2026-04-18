@@ -190,6 +190,7 @@ private val PoiType.dbId: Int
         PoiType.BAKERY -> 1
         PoiType.WATER -> 2
         PoiType.TOILET -> 3
+        PoiType.BIKE_REPAIR -> 4
     }
 
 private fun poiTypeFromDbId(id: Int): PoiType? = when (id) {
@@ -197,5 +198,6 @@ private fun poiTypeFromDbId(id: Int): PoiType? = when (id) {
     1 -> PoiType.BAKERY
     2 -> PoiType.WATER
     3 -> PoiType.TOILET
+    4 -> PoiType.BIKE_REPAIR
     else -> null
 }

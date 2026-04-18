@@ -153,7 +153,8 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                             PoiType.GROCERY,
                             PoiType.BAKERY,
                             PoiType.WATER,
-                            PoiType.TOILET
+                            PoiType.TOILET,
+                            PoiType.BIKE_REPAIR
                         )
                     )
                 } catch (_: Exception) {

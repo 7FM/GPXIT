@@ -449,9 +449,11 @@ fun GpxitApp(
                     poiGrocery = prefs.poiGrocery,
                     poiWater = prefs.poiWater,
                     poiToilet = prefs.poiToilet,
+                    poiBikeRepair = prefs.poiBikeRepair,
                     onSetPoiGrocery = { settingsViewModel.setPoiGrocery(it) },
                     onSetPoiWater = { settingsViewModel.setPoiWater(it) },
                     onSetPoiToilet = { settingsViewModel.setPoiToilet(it) },
+                    onSetPoiBikeRepair = { settingsViewModel.setPoiBikeRepair(it) },
                     onStationClick = { station ->
                         highlightedStation = station
                         // Query connections for this single station

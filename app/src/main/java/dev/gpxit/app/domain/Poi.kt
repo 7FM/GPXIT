@@ -4,7 +4,8 @@ enum class PoiType {
     GROCERY,       // supermarket, convenience, grocery stores
     BAKERY,        // bakeries
     WATER,         // drinking water taps / fountains
-    TOILET         // public toilets
+    TOILET,        // public toilets
+    BIKE_REPAIR    // bike-repair stations + bike shops
 }
 
 data class Poi(

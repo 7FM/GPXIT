@@ -87,9 +87,11 @@ fun MapScreen(
     poiGrocery: Boolean = false,
     poiWater: Boolean = false,
     poiToilet: Boolean = false,
+    poiBikeRepair: Boolean = false,
     onSetPoiGrocery: (Boolean) -> Unit = {},
     onSetPoiWater: (Boolean) -> Unit = {},
     onSetPoiToilet: (Boolean) -> Unit = {},
+    onSetPoiBikeRepair: (Boolean) -> Unit = {},
     onSearchNearby: (center: GeoPoint, radiusMeters: Int) -> Unit,
     onClearNearbyStations: () -> Unit,
     onStationClick: (StationCandidate) -> Unit,
@@ -130,7 +132,7 @@ fun MapScreen(
     val lastFetchKey = remember { mutableStateOf<String?>(null) }
 
     // Types enabled right now.
-    val enabledTypes = remember(poiGrocery, poiWater, poiToilet) {
+    val enabledTypes = remember(poiGrocery, poiWater, poiToilet, poiBikeRepair) {
         buildSet {
             if (poiGrocery) {
                 add(dev.gpxit.app.domain.PoiType.GROCERY)
@@ -138,6 +140,7 @@ fun MapScreen(
             }
             if (poiWater) add(dev.gpxit.app.domain.PoiType.WATER)
             if (poiToilet) add(dev.gpxit.app.domain.PoiType.TOILET)
+            if (poiBikeRepair) add(dev.gpxit.app.domain.PoiType.BIKE_REPAIR)
         }
     }
 
@@ -438,6 +441,13 @@ fun MapScreen(
                                 Checkbox(checked = poiToilet, onCheckedChange = null)
                             },
                             onClick = { onSetPoiToilet(!poiToilet) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Bike repair / shops") },
+                            leadingIcon = {
+                                Checkbox(checked = poiBikeRepair, onCheckedChange = null)
+                            },
+                            onClick = { onSetPoiBikeRepair(!poiBikeRepair) }
                         )
                     }
                 }
