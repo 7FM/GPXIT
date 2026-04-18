@@ -153,17 +153,19 @@ class BRouterClient(private val context: Context) {
     }
 
     private fun parseGpxPolyline(gpx: String): List<GeoPoint> {
-        // Simpler to pull <trkpt> attributes with a regex than to stand
-        // up the full GPX parser — we only care about the raw polyline
-        // geometry, not names, times, or elevation.
-        val regex = Regex(
-            """<trkpt[^>]*lat=["']([-\d.]+)["'][^>]*lon=["']([-\d.]+)["']""",
-            RegexOption.IGNORE_CASE
-        )
+        // Pull <trkpt> attributes with a regex — quicker than spinning
+        // up the full GPX parser and we only care about the raw polyline
+        // geometry. BRouter writes the attributes as `lon=".." lat=".."`
+        // (lon first), so we can't assume the ordering — extract each
+        // attribute independently from the captured attribute blob.
+        val tagRegex = Regex("""<trkpt\s+([^/>]*?)/?>""", RegexOption.IGNORE_CASE)
+        val latRegex = Regex("""\blat\s*=\s*["']([-\d.]+)["']""")
+        val lonRegex = Regex("""\blon\s*=\s*["']([-\d.]+)["']""")
         val out = ArrayList<GeoPoint>()
-        for (m in regex.findAll(gpx)) {
-            val lat = m.groupValues[1].toDoubleOrNull() ?: continue
-            val lon = m.groupValues[2].toDoubleOrNull() ?: continue
+        for (m in tagRegex.findAll(gpx)) {
+            val attrs = m.groupValues[1]
+            val lat = latRegex.find(attrs)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
+            val lon = lonRegex.find(attrs)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
             out += GeoPoint(lat, lon)
         }
         return out
