@@ -30,7 +30,7 @@ import kotlin.coroutines.resume
 class BRouterClient(private val context: Context) {
 
     /**
-     * Route from [start] to [end] using BRouter's "trekking" (bike-safe)
+     * Route from [start] to [end] using BRouter's bike-safe ("trekking")
      * profile. Returns the list of GeoPoints along the computed track,
      * or null if BRouter isn't available / routing fails.
      *
@@ -40,29 +40,48 @@ class BRouterClient(private val context: Context) {
     suspend fun routeBike(
         start: GeoPoint,
         end: GeoPoint,
-        profile: String = DEFAULT_PROFILE,
     ): List<GeoPoint>? = withContext(Dispatchers.IO) {
-        val binder = bindWithTimeout() ?: return@withContext null
+        val binder = bindWithTimeout() ?: run {
+            Log.w(TAG, "could not bind to BRouter service")
+            return@withContext null
+        }
         try {
+            // BRouter's simple-param API: v picks the vehicle class and
+            // fast toggles fast vs safe. "bicycle" + "0" resolves to the
+            // trekking profile internally. v = "trekking" would have
+            // been wrong — `v` only accepts motorcar|bicycle|foot, and
+            // anything else leaves BRouter with no profile to load.
             val params = Bundle().apply {
                 putDoubleArray("lats", doubleArrayOf(start.latitude, end.latitude))
                 putDoubleArray("lons", doubleArrayOf(start.longitude, end.longitude))
                 putString("trackFormat", "gpx")
-                putString("v", profile) // BRouter profile name
-                putString("fast", "0")   // prefer safe route for bikes
+                putString("v", "bicycle")
+                putString("fast", "0")
                 putString("maxRunningTime", "30")
             }
+            Log.i(TAG, "requesting BRouter route ($start -> $end)")
             val track = try {
-                binder.getTrackFromParams(params)
+                withTimeoutOrNull(45_000) {
+                    binder.getTrackFromParams(params)
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "BRouter call failed: ${e.message}")
                 null
             }
             if (track.isNullOrBlank() || !track.contains("<trkpt", ignoreCase = true)) {
-                if (!track.isNullOrBlank()) Log.w(TAG, "BRouter error: $track")
+                if (track.isNullOrBlank()) {
+                    Log.w(TAG, "BRouter returned no response")
+                } else {
+                    // BRouter returns an error string here when routing
+                    // can't happen — typically "no segment data for
+                    // this region, download the area in BRouter first".
+                    Log.w(TAG, "BRouter error: ${track.take(300)}")
+                }
                 return@withContext null
             }
-            parseGpxPolyline(track)
+            val points = parseGpxPolyline(track)
+            Log.i(TAG, "BRouter returned ${points.size} points")
+            points
         } finally {
             unbind()
         }
@@ -147,7 +166,5 @@ class BRouterClient(private val context: Context) {
     companion object {
         private const val TAG = "BRouterClient"
         private const val BROUTER_PACKAGE = "btools.routingapp"
-        /** Best general-purpose bike profile shipped by BRouter. */
-        const val DEFAULT_PROFILE = "trekking"
     }
 }
