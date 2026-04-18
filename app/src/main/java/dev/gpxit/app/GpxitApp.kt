@@ -275,32 +275,21 @@ fun GpxitApp(
     }
 
     // Compute the bike-aware route whenever nav turns on or the
-    // destination changes. We always route from the rider's current
-    // position to the station — asking BRouter to start from a
-    // pre-picked branch-off on the GPX could force a backtrack if
-    // BRouter's preferred road to the station actually diverges from
-    // the GPX earlier than the geographically-closest point. MapComposable
-    // takes care of finding where BRouter's polyline leaves the GPX
-    // corridor and displays GPX-follow up to that point + BRouter
-    // after it, so the rider gets both "stick to the GPX" and
-    // "no U-turns".
-    //
-    // Origin is fixed at nav-start; if the rider moves significantly
-    // mid-ride the polyline goes slightly stale and they can toggle
-    // nav off/on to refresh.
-    LaunchedEffect(
-        navigationActive,
-        userDestination,
-        currentRoute,
-        // Only a null↔non-null flip re-triggers; we don't want a fresh
-        // BRouter call on every 5-second GPS update.
-        userLocation != null
-    ) {
+    // destination changes. Origin = the GPX point closest to the
+    // station. BRouter's polyline might initially ride backwards along
+    // the GPX to reach the actual road it wants to branch at — that's
+    // fine, because MapComposable hides the backward portion by
+    // snapping the on-GPX segment to GPX points from userIdx to
+    // wherever BRouter's polyline actually leaves the GPX corridor.
+    // Net result: the rendered polyline stays on the GPX up to
+    // BRouter's true divergence, then hands off to BRouter, without
+    // showing any U-turn.
+    LaunchedEffect(navigationActive, userDestination, currentRoute) {
         if (!navigationActive) {
             navigationLastMile = null
             return@LaunchedEffect
         }
-        currentRoute ?: run { navigationLastMile = null; return@LaunchedEffect }
+        val route = currentRoute ?: run { navigationLastMile = null; return@LaunchedEffect }
         val dst = userDestination?.station ?: run {
             navigationLastMile = null; return@LaunchedEffect
         }
@@ -308,11 +297,12 @@ fun GpxitApp(
             navigationLastMile = null
             return@LaunchedEffect
         }
-        val loc = userLocation ?: run {
-            navigationLastMile = null; return@LaunchedEffect
-        }
+        val (branchIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+            route.points, dst.lat, dst.lon
+        )
+        val branchFrom = route.points[branchIdx]
         navigationLastMile = brouterClient.routeBike(
-            start = GeoPoint(loc.latitude, loc.longitude),
+            start = GeoPoint(branchFrom.lat, branchFrom.lon),
             end = GeoPoint(dst.lat, dst.lon)
         )
     }

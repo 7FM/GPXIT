@@ -865,7 +865,13 @@ fun OsmMapView(
                         navPoints += router
                     } else {
                         // Snap the on-GPX portion to real GPX points and
-                        // append BRouter from divergence onward.
+                        // append BRouter from divergence onward. The
+                        // "last on-GPX" router point is whichever one
+                        // BRouter visited last before branching off —
+                        // that's the actual crossing BRouter wanted to
+                        // take, which may be an earlier GPX index than
+                        // the geographically-closest-to-station origin
+                        // we passed in.
                         val lastOnGpxRouter = router[
                             (if (divergenceIdx < 0) router.lastIndex else divergenceIdx - 1)
                                 .coerceAtLeast(0)
@@ -878,21 +884,30 @@ fun OsmMapView(
                         )
                         navPoints += GeoPoint(userLocation.latitude, userLocation.longitude)
                         if (endOnGpxIdx >= userIdx) {
+                            // Clean case: BRouter's actual crossing is
+                            // still ahead of the rider → follow the GPX
+                            // forward to it, then branch off. This
+                            // hides any backward portion of BRouter's
+                            // polyline that existed only because we
+                            // passed a branchIdx later than BRouter's
+                            // preferred crossing.
                             for (i in userIdx..endOnGpxIdx) {
                                 navPoints += GeoPoint(gpx[i].lat, gpx[i].lon)
                             }
+                            if (divergenceIdx >= 0) {
+                                for (i in divergenceIdx until router.size) {
+                                    navPoints += router[i]
+                                }
+                            }
                         } else {
-                            // Shouldn't happen given "route from user",
-                            // but fall back to whichever order is non-
-                            // empty just in case.
-                            for (i in endOnGpxIdx..userIdx) {
-                                navPoints += GeoPoint(gpx[i].lat, gpx[i].lon)
-                            }
-                        }
-                        if (divergenceIdx >= 0) {
-                            for (i in divergenceIdx until router.size) {
-                                navPoints += router[i]
-                            }
+                            // Rider has already passed BRouter's
+                            // preferred crossing — there's no way to
+                            // reach the station without some kind of
+                            // U-turn. Draw BRouter's full polyline so
+                            // the backtrack is visible and honest,
+                            // rather than snapping a fake forward GPX
+                            // segment the rider can't actually use.
+                            navPoints += router
                         }
                     }
 
