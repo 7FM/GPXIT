@@ -827,37 +827,73 @@ fun OsmMapView(
                 }
 
                 // Navigation overlay — a bright highlighted path from
-                // the user's current position to the destination. If
-                // the natural branch-off on the GPX is still ahead of
-                // the rider, we follow the GPX up to that point and
-                // then hand off to BRouter; if it's already behind,
-                // we skip the GPX entirely (would be a pointless
-                // U-turn) and let BRouter route directly from the
-                // rider's position.
+                // the rider's position to the destination. BRouter
+                // gives us the full route (starting from user
+                // position); we find where its polyline leaves the
+                // GPX corridor and render:
+                //   • GPX points up to that divergence (so the
+                //     highlighted path snaps exactly onto the blue
+                //     GPX polyline while they coincide), then
+                //   • BRouter points from the divergence onward.
+                // This way BRouter can freely pick an earlier
+                // branch-off than the geographically-closest GPX
+                // point without producing a visible U-turn.
                 val dst = destinationStation
-                if (navigationActive && dst != null && userLocation != null) {
-                    val pts = routeInfo.points
-                    val (userIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
-                        pts, userLocation.latitude, userLocation.longitude
-                    )
-                    val (branchIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
-                        pts, dst.lat, dst.lon
-                    )
-                    val navPoints = ArrayList<GeoPoint>()
-                    navPoints += GeoPoint(userLocation.latitude, userLocation.longitude)
-                    if (branchIdx >= userIdx) {
-                        // Branch-off is ahead — follow the GPX up to it.
-                        for (i in userIdx..branchIdx) {
-                            navPoints += GeoPoint(pts[i].lat, pts[i].lon)
+                if (navigationActive && dst != null && userLocation != null &&
+                    !navigationLastMile.isNullOrEmpty()
+                ) {
+                    val router = navigationLastMile
+                    val gpx = routeInfo.points
+                    val corridorMeters = 60.0
+
+                    // Find first router point that's clearly off the GPX.
+                    var divergenceIdx = -1
+                    for (i in router.indices) {
+                        val (_, d) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+                            gpx, router[i].latitude, router[i].longitude
+                        )
+                        if (d > corridorMeters) {
+                            divergenceIdx = i
+                            break
                         }
                     }
-                    // BRouter last-mile — only drawn when the polyline
-                    // is available. Straight lines across buildings or
-                    // rivers are misleading, so we refuse to guess and
-                    // simply leave the branch off until the real route
-                    // is ready.
-                    if (!navigationLastMile.isNullOrEmpty()) {
-                        navPoints += navigationLastMile
+
+                    val navPoints = ArrayList<GeoPoint>()
+                    if (divergenceIdx == 0) {
+                        // Router leaves the GPX immediately — no follow
+                        // segment; just draw BRouter's polyline as-is.
+                        navPoints += router
+                    } else {
+                        // Snap the on-GPX portion to real GPX points and
+                        // append BRouter from divergence onward.
+                        val lastOnGpxRouter = router[
+                            (if (divergenceIdx < 0) router.lastIndex else divergenceIdx - 1)
+                                .coerceAtLeast(0)
+                        ]
+                        val (userIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+                            gpx, userLocation.latitude, userLocation.longitude
+                        )
+                        val (endOnGpxIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+                            gpx, lastOnGpxRouter.latitude, lastOnGpxRouter.longitude
+                        )
+                        navPoints += GeoPoint(userLocation.latitude, userLocation.longitude)
+                        if (endOnGpxIdx >= userIdx) {
+                            for (i in userIdx..endOnGpxIdx) {
+                                navPoints += GeoPoint(gpx[i].lat, gpx[i].lon)
+                            }
+                        } else {
+                            // Shouldn't happen given "route from user",
+                            // but fall back to whichever order is non-
+                            // empty just in case.
+                            for (i in endOnGpxIdx..userIdx) {
+                                navPoints += GeoPoint(gpx[i].lat, gpx[i].lon)
+                            }
+                        }
+                        if (divergenceIdx >= 0) {
+                            for (i in divergenceIdx until router.size) {
+                                navPoints += router[i]
+                            }
+                        }
                     }
 
                     val navPolyline = Polyline().apply {
