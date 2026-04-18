@@ -7,15 +7,13 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.DisposableEffect
 import dev.gpxit.app.ui.import_route.ImportViewModel
 
-// Scrim colors for the nav/status bars under edge-to-edge on Android 15+.
-// Values come from the canonical enableEdgeToEdge snippet in the Android docs —
-// a near-opaque white in light mode and a translucent dark grey in dark mode,
-// so the system icons stay legible regardless of what the app draws behind.
-private val lightScrim = android.graphics.Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+// Warm-cream scrim that matches the Import / Settings backgrounds so
+// the system status/nav bars blend into the app. Paired with
+// SystemBarStyle.light below to pin the system icons to DARK regardless
+// of whether the device's night-mode setting is light or dark.
+private val lightScrim = android.graphics.Color.argb(0xff, 0xFA, 0xFA, 0xFA)
 private val darkScrim = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
 class MainActivity : ComponentActivity() {
@@ -28,25 +26,19 @@ class MainActivity : ComponentActivity() {
         // Handle GPX shared via intent
         handleIncomingIntent(intent)
 
+        // Pin status + nav bars to a light style (dark system icons on
+        // a warm-cream scrim). Our content is always light regardless
+        // of the device night-mode setting — the Import screen's
+        // background is Palette.bg, the map tiles are light — so we
+        // don't want the system flipping to a dark scrim / light
+        // icons on dark-mode devices. SystemBarStyle.light forces the
+        // icon tint to dark and draws the declared scrim.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(lightScrim, darkScrim),
+            navigationBarStyle = SystemBarStyle.light(lightScrim, darkScrim),
+        )
+
         setContent {
-            // Re-apply edge-to-edge with scrim styles that track the Compose
-            // dark-theme state. targetSdk 35 enforces edge-to-edge and the
-            // default transparent status bar leaves icons white-on-white on
-            // light screens like Import — the scrim fixes the contrast.
-            val darkTheme = isSystemInDarkTheme()
-            DisposableEffect(darkTheme) {
-                enableEdgeToEdge(
-                    statusBarStyle = SystemBarStyle.auto(
-                        lightScrim,
-                        darkScrim,
-                    ) { darkTheme },
-                    navigationBarStyle = SystemBarStyle.auto(
-                        lightScrim,
-                        darkScrim,
-                    ) { darkTheme },
-                )
-                onDispose {}
-            }
             GpxitApp(importViewModel = importViewModel)
         }
     }

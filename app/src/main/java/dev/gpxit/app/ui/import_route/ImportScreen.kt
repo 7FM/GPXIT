@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -24,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
@@ -39,6 +41,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,25 +76,35 @@ fun ImportScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            // Background bleeds edge-to-edge so the cream fill sits
+            // under the status / nav bars (dark system icons give us
+            // legibility — set globally via MainActivity / Theme.kt).
             .background(Palette.bg)
-            .statusBarsPadding()
     ) {
-        // Settings gear in the top-right.
+        // Settings gear in the top-right — below the status bar inset.
         IconButton(
             onClick = onNavigateToSettings,
             modifier = Modifier
                 .align(Alignment.TopEnd)
+                .statusBarsPadding()
                 .padding(top = 4.dp, end = 8.dp)
         ) {
-            SettingsGearIcon(tint = Palette.ink)
+            Icon(
+                imageVector = DesignIcons.Settings,
+                contentDescription = "Settings",
+                tint = Palette.ink,
+                modifier = Modifier.size(22.dp),
+            )
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // Wordmark + tagline + home pill.
+            // Wordmark + tagline + home pill — also below the status bar.
             WordmarkBlock(
                 homeStationName = homeStationName,
                 onSetHome = onNavigateToSettings,
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp)
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(start = 24.dp, end = 24.dp, top = 28.dp)
             )
 
             // Optional BRouter setup card — kept here, restyled to fit
@@ -127,20 +140,25 @@ fun ImportScreen(
                 }
             }
 
-            // Bottom action stack.
+            // Bottom action stack — navigationBarsPadding so the
+            // buttons clear the 3-button gesture bar on Android
+            // devices that still use it.
             Column(
                 modifier = Modifier
-                    .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
+                    .navigationBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (loaded) {
                     PeachButton(
                         text = "View on Map",
+                        icon = DesignIcons.Route,
                         onClick = onNavigateToMap,
                         large = true,
                     )
                     OutlinePillButton(
                         text = "Offline Map",
+                        icon = DesignIcons.Layers,
                         onClick = onDownloadOfflineMap,
                         enabled = !downloadState.active,
                     )
@@ -160,6 +178,7 @@ fun ImportScreen(
                 } else {
                     PeachButton(
                         text = "Import GPX File",
+                        icon = DesignIcons.Plus,
                         onClick = {
                             launcher.launch(arrayOf(
                                 "application/gpx+xml",
@@ -221,7 +240,12 @@ private fun HomePill(
             .clickable(onClick = onSetHome)
             .padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
     ) {
-        HomeGlyph(tint = foreground)
+        Icon(
+            imageVector = DesignIcons.Home,
+            contentDescription = null,
+            tint = foreground,
+            modifier = Modifier.size(14.dp),
+        )
         Spacer(Modifier.width(6.dp))
         Text(
             text = if (isSet) "Home · $homeStationName" else "Set your home station",
@@ -505,7 +529,12 @@ private fun EmptyCard(
                     .background(Palette.accent),
                 contentAlignment = Alignment.Center,
             ) {
-                RouteGlyph(tint = Palette.accentInk, sizeDp = 30)
+                Icon(
+                    imageVector = DesignIcons.Route,
+                    contentDescription = null,
+                    tint = Palette.accentInk,
+                    modifier = Modifier.size(30.dp),
+                )
             }
             Text(
                 text = if (isLoading) "Importing route…" else "No route loaded",
@@ -540,6 +569,7 @@ private fun PeachButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
     large: Boolean = false,
+    icon: ImageVector? = null,
 ) {
     Button(
         onClick = onClick,
@@ -555,6 +585,15 @@ private fun PeachButton(
             disabledContentColor = Palette.accentInk.copy(alpha = 0.6f),
         ),
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Palette.accentInk,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+        }
         Text(
             text = text,
             fontSize = if (large) 17.sp else 15.sp,
@@ -570,6 +609,7 @@ private fun OutlinePillButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
     small: Boolean = false,
+    icon: ImageVector? = null,
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -583,6 +623,15 @@ private fun OutlinePillButton(
             disabledContentColor = Palette.ink.copy(alpha = 0.5f),
         ),
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Palette.ink,
+                modifier = Modifier.size(17.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+        }
         Text(
             text = text,
             fontSize = if (small) 13.sp else 15.sp,
@@ -592,76 +641,3 @@ private fun OutlinePillButton(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Inline glyphs (no extra resource files)
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun SettingsGearIcon(tint: Color) {
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val outerR = size.width / 2f - 1f
-        val innerR = outerR * 0.55f
-        val toothW = outerR * 0.32f
-        for (i in 0 until 8) {
-            val angle = Math.toRadians((i * 45.0))
-            val cosA = kotlin.math.cos(angle).toFloat()
-            val sinA = kotlin.math.sin(angle).toFloat()
-            drawLine(
-                tint,
-                start = Offset(cx + innerR * cosA, cy + innerR * sinA),
-                end = Offset(cx + outerR * cosA, cy + outerR * sinA),
-                strokeWidth = toothW
-            )
-        }
-        drawCircle(tint, radius = innerR + 1f, center = Offset(cx, cy))
-        drawCircle(Palette.bg, radius = innerR * 0.45f, center = Offset(cx, cy))
-    }
-}
-
-@Composable
-private fun HomeGlyph(tint: Color) {
-    Canvas(modifier = Modifier.size(14.dp)) {
-        val w = size.width
-        val h = size.height
-        val stroke = 2.2f
-        // Roof + walls outline of a tiny house.
-        val path = androidx.compose.ui.graphics.Path().apply {
-            moveTo(w * 0.1f, h * 0.55f)
-            lineTo(w * 0.5f, h * 0.1f)
-            lineTo(w * 0.9f, h * 0.55f)
-            lineTo(w * 0.9f, h * 0.95f)
-            lineTo(w * 0.1f, h * 0.95f)
-            close()
-        }
-        drawPath(path, tint, style = Stroke(width = stroke))
-    }
-}
-
-@Composable
-private fun RouteGlyph(tint: Color, sizeDp: Int) {
-    Canvas(modifier = Modifier.size(sizeDp.dp)) {
-        val s = size.width
-        val stroke = 2.2f * (s / 24f)
-        val r1 = 2f * (s / 24f)
-        // Two endpoint dots + an S-curve between them (matches the
-        // design's IconRoute glyph).
-        drawCircle(tint, radius = r1, center = Offset(s * 0.25f, s * 0.21f))
-        drawCircle(tint, radius = r1, center = Offset(s * 0.75f, s * 0.79f))
-        val path = androidx.compose.ui.graphics.Path().apply {
-            moveTo(s * 0.25f, s * 0.29f)
-            cubicTo(
-                s * 0.25f, s * 0.5f,
-                s * 0.6f, s * 0.34f,
-                s * 0.6f, s * 0.55f,
-            )
-            cubicTo(
-                s * 0.6f, s * 0.7f,
-                s * 0.75f, s * 0.71f,
-                s * 0.75f, s * 0.71f,
-            )
-        }
-        drawPath(path, tint, style = Stroke(width = stroke))
-    }
-}

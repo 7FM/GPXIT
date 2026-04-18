@@ -28,18 +28,18 @@ fun GpxitTheme(
         else -> lightColorScheme()
     }
 
-    // Edge-to-edge makes the status/navigation bars transparent, so the system
-    // icons need to match the app's content underneath. When the app is in
-    // light mode we draw on light surfaces → status icons must be dark; in
-    // dark mode → light. Without this the status bar icons are invisible
-    // (white-on-white) on the Import screen and any other non-TopAppBar route.
+    // Pin the system icon tint to dark regardless of device night
+    // mode — GPXIT's content is always a light cream background (the
+    // Import screen, settings sheet, map tiles), so a dark-mode device
+    // would otherwise get invisible white-on-cream icons. MainActivity
+    // also declares SystemBarStyle.light to match.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !darkTheme
-            controller.isAppearanceLightNavigationBars = !darkTheme
+            controller.isAppearanceLightStatusBars = true
+            controller.isAppearanceLightNavigationBars = true
         }
     }
 

@@ -37,7 +37,6 @@ import dev.gpxit.app.ui.map.MapScreen
 import dev.gpxit.app.ui.settings.SettingsScreen
 import dev.gpxit.app.ui.settings.SettingsViewModel
 import dev.gpxit.app.ui.theme.GpxitTheme
-import dev.gpxit.app.ui.theme.StatusBarProtection
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -673,10 +672,11 @@ fun GpxitApp(
             }
         }
 
-            // Draw status-bar scrim on top so system icons stay legible.
-            // targetSdk 35 enforces edge-to-edge and ignores statusBarColor;
-            // this is the canonical per-Compose fix.
-            StatusBarProtection()
+            // No manual status-bar scrim here — the system draws one
+            // from SystemBarStyle.light configured in MainActivity, in
+            // the same cream tone as Palette.bg so the Import screen
+            // reads as "background fills all the way up under the
+            // status bar".
         }
 
         if (showBRouterInstallPrompt) {
