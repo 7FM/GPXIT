@@ -119,8 +119,12 @@ class BRouterClient(private val context: Context) {
         }
         connection = conn
 
-        val intent = Intent("btools.routingapp.IBRouterService").apply {
-            setPackage(BROUTER_PACKAGE)
+        // BRouter's service has no intent-filter, so action-based
+        // lookup always fails. Use the explicit component name instead
+        // — this matches the exported service declared in BRouter's
+        // manifest (.BRouterService → btools.routingapp.BRouterService).
+        val intent = Intent().apply {
+            setClassName(BROUTER_PACKAGE, "$BROUTER_PACKAGE.BRouterService")
         }
         val started = try {
             context.bindService(intent, conn, Context.BIND_AUTO_CREATE)
@@ -129,7 +133,9 @@ class BRouterClient(private val context: Context) {
             false
         }
         if (!started) {
-            context.unbindService(conn)
+            // bindService returning false means the service was never
+            // connected, so calling unbindService here would throw
+            // IllegalArgumentException("Service not registered").
             connection = null
             if (cont.isActive) cont.resume(null)
         }

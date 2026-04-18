@@ -5,15 +5,12 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- Package-visibility entries for Android 11+ so we can detect and
-         bind to the BRouter app for bike-aware offline routing. Without
-         these the PackageManager pretends btools.routingapp doesn't
-         exist and bindService silently fails. -->
+    <!-- Package-visibility entry for Android 11+ so we can detect and
+         bind to the BRouter app for bike-aware offline routing. We
+         bind by explicit component (BRouter's service has no
+         intent-filter) so a <package> entry is enough. -->
     <queries>
         <package android:name="btools.routingapp" />
-        <intent>
-            <action android:name="btools.routingapp.IBRouterService" />
-        </intent>
     </queries>
 
     <!-- Trip tracking foreground service -->
