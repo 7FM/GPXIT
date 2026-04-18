@@ -62,14 +62,6 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                             poiCount = cachedPois.size,
                             stationDiscoveryStatus = "${stations.size} stations loaded"
                         )
-                        // Re-query the POI DB for the route corridor in
-                        // the background. Covers two cases without any
-                        // user action: (1) the cache was written before
-                        // a new POI category existed in the app (so the
-                        // on-disk JSON has no rows for it), and (2) the
-                        // user has updated the POI DB since the last
-                        // import and we want the fresh data.
-                        refreshPoisForRoute(routeWithStations)
                     }
                 } catch (_: Exception) {
                     // Corrupted cache, ignore
