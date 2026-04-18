@@ -1,6 +1,7 @@
 package dev.gpxit.app
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -9,12 +10,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import dev.gpxit.app.ui.import_route.ImportViewModel
 
-// Warm-cream scrim that matches the Import / Settings backgrounds so
-// the system status/nav bars blend into the app. Paired with
-// SystemBarStyle.light below to pin the system icons to DARK regardless
-// of whether the device's night-mode setting is light or dark.
-private val lightScrim = android.graphics.Color.argb(0xff, 0xFA, 0xFA, 0xFA)
-private val darkScrim = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
+// Scrim colours for the system bars, chosen to match the Import /
+// Settings backgrounds in each theme. The Import screen's background
+// is #FAFAFA in light mode and #1B1C1E in dark mode (from
+// HomePalette.bg) — same values here so the system bars blend into
+// the page fill.
+private val scrimLight = android.graphics.Color.argb(0xff, 0xFA, 0xFA, 0xFA)
+private val scrimDark = android.graphics.Color.argb(0xff, 0x1B, 0x1C, 0x1E)
 
 class MainActivity : ComponentActivity() {
 
@@ -26,16 +28,21 @@ class MainActivity : ComponentActivity() {
         // Handle GPX shared via intent
         handleIncomingIntent(intent)
 
-        // Pin status + nav bars to a light style (dark system icons on
-        // a warm-cream scrim). Our content is always light regardless
-        // of the device night-mode setting — the Import screen's
-        // background is Palette.bg, the map tiles are light — so we
-        // don't want the system flipping to a dark scrim / light
-        // icons on dark-mode devices. SystemBarStyle.light forces the
-        // icon tint to dark and draws the declared scrim.
+        // Mirror the device night-mode setting onto the system bars so
+        // the Import screen's cream bg (light) or near-black bg (dark)
+        // extends seamlessly under the status and nav bars. Auto picks
+        // dark icons for light scrim and vice versa via the returned
+        // lambda.
+        val isNightMode = (resources.configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val style = if (isNightMode) {
+            SystemBarStyle.dark(scrimDark)
+        } else {
+            SystemBarStyle.light(scrimLight, scrimDark)
+        }
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(lightScrim, darkScrim),
-            navigationBarStyle = SystemBarStyle.light(lightScrim, darkScrim),
+            statusBarStyle = style,
+            navigationBarStyle = style,
         )
 
         setContent {

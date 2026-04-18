@@ -4,9 +4,11 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +33,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,14 +76,16 @@ fun ImportScreen(
     }
 
     val loaded = routeInfo != null && !uiState.isLoading
+    val c = if (isSystemInDarkTheme()) DarkPalette else LightPalette
 
+    CompositionLocalProvider(LocalHomePalette provides c) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Background bleeds edge-to-edge so the cream fill sits
-            // under the status / nav bars (dark system icons give us
-            // legibility — set globally via MainActivity / Theme.kt).
-            .background(Palette.bg)
+            // Background bleeds edge-to-edge so the page fill sits
+            // under the status / nav bars (icon tints are pinned via
+            // MainActivity / Theme.kt based on the same palette).
+            .background(c.bg)
     ) {
         // Settings gear in the top-right — below the status bar inset.
         IconButton(
@@ -92,7 +98,7 @@ fun ImportScreen(
             Icon(
                 imageVector = DesignIcons.Settings,
                 contentDescription = "Settings",
-                tint = Palette.ink,
+                tint = c.ink,
                 modifier = Modifier.size(22.dp),
             )
         }
@@ -166,13 +172,13 @@ fun ImportScreen(
                         LinearProgressIndicator(
                             progress = { downloadState.progress },
                             modifier = Modifier.fillMaxWidth(),
-                            color = Palette.accentDark,
-                            trackColor = Palette.bgWarm,
+                            color = c.accentDark,
+                            trackColor = c.bgWarm,
                         )
                         Text(
                             text = downloadState.label,
                             fontSize = 12.sp,
-                            color = Palette.inkSoft,
+                            color = c.inkSoft,
                         )
                     }
                 } else {
@@ -194,6 +200,7 @@ fun ImportScreen(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -202,18 +209,31 @@ private fun WordmarkBlock(
     onSetHome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val c = LocalHomePalette.current
     Column(modifier = modifier) {
-        Text(
-            text = "GPXIT",
-            color = Palette.ink,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 40.sp,
-            letterSpacing = (-1.5).sp,
-        )
-        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // App icon as the brand mark next to the wordmark — same
+            // adaptive launcher icon the home-screen tile uses.
+            Image(
+                painter = painterResource(dev.gpxit.app.R.mipmap.ic_launcher),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = "GPXIT",
+                color = c.ink,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 40.sp,
+                letterSpacing = (-1.5).sp,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
         Text(
             text = "Import a route, find your way home.",
-            color = Palette.inkSoft,
+            color = c.inkSoft,
             fontSize = 14.sp,
         )
         Spacer(Modifier.height(12.dp))
@@ -229,9 +249,10 @@ private fun HomePill(
     homeStationName: String?,
     onSetHome: () -> Unit,
 ) {
+    val c = LocalHomePalette.current
     val isSet = homeStationName != null
-    val container = if (isSet) Palette.bgWarm else Color(0xFFFADAD3)
-    val foreground = if (isSet) Palette.inkSoft else Palette.accentInk
+    val container = if (isSet) c.pillBg else c.pillBgMissing
+    val foreground = if (isSet) c.inkSoft else c.pillFgMissing
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -261,25 +282,26 @@ private fun BRouterSetupRow(
     onInstall: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val c = LocalHomePalette.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Palette.bgWarm)
+            .background(c.bgWarm)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
                 text = "BRouter — optional",
-                color = Palette.ink,
+                color = c.ink,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = "Install for offline bike-aware navigation",
-                color = Palette.inkSoft,
+                color = c.inkSoft,
                 fontSize = 12.sp,
             )
         }
@@ -297,6 +319,7 @@ private fun LoadedCard(
     uiState: ImportUiState,
     onOpenMap: () -> Unit,
 ) {
+    val c = LocalHomePalette.current
     val (from, to) = remember(routeInfo.name) { splitRouteName(routeInfo.name) }
     val (climbM, descentM) = remember(routeInfo.points) {
         routeClimbDescentMeters(routeInfo.points)
@@ -306,7 +329,7 @@ private fun LoadedCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Palette.cocoa)
+            .background(c.cocoa)
             .clickable(onClick = onOpenMap)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -319,7 +342,7 @@ private fun LoadedCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "ACTIVE ROUTE",
-                    color = Palette.cocoaInkSoft,
+                    color = c.cocoaInkSoft,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 0.4.sp,
@@ -329,7 +352,7 @@ private fun LoadedCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = from,
-                            color = Palette.cocoaInk,
+                            color = c.cocoaInk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
                             letterSpacing = (-0.3).sp,
@@ -339,13 +362,13 @@ private fun LoadedCard(
                         )
                         Text(
                             text = " → ",
-                            color = Palette.cocoaInkSoft,
+                            color = c.cocoaInkSoft,
                             fontWeight = FontWeight.Medium,
                             fontSize = 20.sp,
                         )
                         Text(
                             text = to,
-                            color = Palette.cocoaInk,
+                            color = c.cocoaInk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
                             letterSpacing = (-0.3).sp,
@@ -357,7 +380,7 @@ private fun LoadedCard(
                 } else {
                     Text(
                         text = from.ifBlank { "Imported route" },
-                        color = Palette.cocoaInk,
+                        color = c.cocoaInk,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
                         letterSpacing = (-0.3).sp,
@@ -375,12 +398,12 @@ private fun LoadedCard(
                 .fillMaxWidth()
                 .height(140.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Palette.cocoaThumbBg)
+                .background(c.cocoaThumbBg)
         ) {
             RouteThumb(
                 points = routeInfo.points,
-                routeColor = Palette.accent,
-                backgroundColor = Palette.cocoaThumbBg,
+                routeColor = c.accent,
+                backgroundColor = c.cocoaThumbBg,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -430,7 +453,7 @@ private fun LoadedCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "ELEVATION",
-                        color = Palette.cocoaInkSoft,
+                        color = c.cocoaInkSoft,
                         fontSize = 11.sp,
                         letterSpacing = 0.3.sp,
                     )
@@ -438,13 +461,13 @@ private fun LoadedCard(
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             text = "+$climbM",
-                            color = Palette.cocoaInk,
+                            color = c.cocoaInk,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
                         )
                         Text(
                             text = " / −$descentM m",
-                            color = Palette.cocoaInkSoft,
+                            color = c.cocoaInkSoft,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
                         )
@@ -452,7 +475,7 @@ private fun LoadedCard(
                 }
                 ElevationSpark(
                     points = routeInfo.points,
-                    strokeColor = Palette.accent,
+                    strokeColor = c.accent,
                     modifier = Modifier
                         .width(140.dp)
                         .height(32.dp),
@@ -469,11 +492,12 @@ private fun StatColumn(
     label: String,
     modifier: Modifier = Modifier,
 ) {
+    val c = LocalHomePalette.current
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = value,
-                color = Palette.cocoaInk,
+                color = c.cocoaInk,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
@@ -482,7 +506,7 @@ private fun StatColumn(
             if (unit.isNotEmpty()) {
                 Text(
                     text = unit,
-                    color = Palette.cocoaInkSoft,
+                    color = c.cocoaInkSoft,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(start = 3.dp, bottom = 2.dp),
@@ -492,7 +516,7 @@ private fun StatColumn(
         Spacer(Modifier.height(2.dp))
         Text(
             text = label,
-            color = Palette.cocoaInkSoft,
+            color = c.cocoaInkSoft,
             fontSize = 11.sp,
             letterSpacing = 0.3.sp,
         )
@@ -505,14 +529,15 @@ private fun EmptyCard(
     loadingStatus: String?,
     error: String?,
 ) {
+    val c = LocalHomePalette.current
     Box(
         modifier = Modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(22.dp))
-            .background(Palette.bgWarm)
+            .background(c.emptyCardBg)
             .border(
                 width = 1.5.dp,
-                brush = SolidColor(Color.Black.copy(alpha = 0.18f)),
+                brush = SolidColor(c.emptyCardBorder),
                 shape = RoundedCornerShape(22.dp)
             )
             .padding(horizontal = 20.dp, vertical = 32.dp),
@@ -526,19 +551,19 @@ private fun EmptyCard(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(Palette.accent),
+                    .background(c.emptyIconBg),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = DesignIcons.Route,
                     contentDescription = null,
-                    tint = Palette.accentInk,
+                    tint = c.emptyIconInk,
                     modifier = Modifier.size(30.dp),
                 )
             }
             Text(
                 text = if (isLoading) "Importing route…" else "No route loaded",
-                color = Palette.ink,
+                color = c.ink,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
                 letterSpacing = (-0.3).sp,
@@ -550,11 +575,11 @@ private fun EmptyCard(
                     error != null -> error
                     else -> "Import a GPX file to see your route, elevation, and nearby stations along the way."
                 },
-                color = if (error != null) Color(0xFFC0392B) else Palette.inkSoft,
+                color = if (error != null) Color(0xFFC0392B) else c.inkSoft,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
-            if (isLoading) CircularProgressIndicator(color = Palette.accentDark)
+            if (isLoading) CircularProgressIndicator(color = c.accent)
         }
     }
 }
@@ -571,6 +596,7 @@ private fun PeachButton(
     large: Boolean = false,
     icon: ImageVector? = null,
 ) {
+    val c = LocalHomePalette.current
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -579,17 +605,17 @@ private fun PeachButton(
             .height(if (large) 56.dp else 48.dp),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = Palette.accent,
-            contentColor = Palette.accentInk,
-            disabledContainerColor = Palette.accent.copy(alpha = 0.5f),
-            disabledContentColor = Palette.accentInk.copy(alpha = 0.6f),
+            containerColor = c.accentDeep,
+            contentColor = c.accentDeepInk,
+            disabledContainerColor = c.accentDeep.copy(alpha = 0.5f),
+            disabledContentColor = c.accentDeepInk.copy(alpha = 0.6f),
         ),
     ) {
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Palette.accentInk,
+                tint = c.accentDeepInk,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(10.dp))
@@ -611,6 +637,10 @@ private fun OutlinePillButton(
     small: Boolean = false,
     icon: ImageVector? = null,
 ) {
+    val c = LocalHomePalette.current
+    // Dark-mode border is a thin white line at low alpha; light-mode
+    // matches the design's 18%-black rule.
+    val border = if (c.isDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.18f)
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
@@ -618,16 +648,17 @@ private fun OutlinePillButton(
             .fillMaxWidth()
             .height(48.dp),
         shape = CircleShape,
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, border),
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = Palette.ink,
-            disabledContentColor = Palette.ink.copy(alpha = 0.5f),
+            contentColor = c.ink,
+            disabledContentColor = c.ink.copy(alpha = 0.5f),
         ),
     ) {
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Palette.ink,
+                tint = c.ink,
                 modifier = Modifier.size(17.dp),
             )
             Spacer(Modifier.width(10.dp))

@@ -28,18 +28,18 @@ fun GpxitTheme(
         else -> lightColorScheme()
     }
 
-    // Pin the system icon tint to dark regardless of device night
-    // mode — GPXIT's content is always a light cream background (the
-    // Import screen, settings sheet, map tiles), so a dark-mode device
-    // would otherwise get invisible white-on-cream icons. MainActivity
-    // also declares SystemBarStyle.light to match.
+    // Flip the system icon tint to match the device night mode:
+    // dark icons on a light scrim, light icons on a dark scrim. The
+    // scrim colour comes from MainActivity and matches the Import
+    // screen's background in each mode, so the system bars blend
+    // into the page fill.
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = true
-            controller.isAppearanceLightNavigationBars = true
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
