@@ -187,12 +187,15 @@ fun GpxitApp(
     // userDestination is set, so clearing the destination also stops
     // navigation.
     var navigationActive by remember { mutableStateOf(false) }
-    // Bike-aware last-mile geometry computed by BRouter (when
-    // installed), used for the branch-off from the GPX to the station.
-    // Null while BRouter isn't available or routing hasn't run yet —
-    // MapComposable then falls back to a straight line.
+    // Bike-aware last-mile geometry computed by BRouter. Null until
+    // the user starts navigation AND BRouter has finished routing;
+    // MapComposable just omits the branch while it's null.
     var navigationLastMile by remember { mutableStateOf<List<GeoPoint>?>(null) }
     val brouterClient = remember { dev.gpxit.app.data.routing.BRouterClient(context) }
+    // Shown when the user hits "Start navigation" without the BRouter
+    // app installed. We refuse to guess with a straight line because
+    // it's misleading across buildings, rivers, motorways etc.
+    var showBRouterInstallPrompt by remember { mutableStateOf(false) }
 
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
@@ -561,7 +564,15 @@ fun GpxitApp(
                     userDestinationStation = userDestination?.station,
                     onSetDestination = { option -> userDestination = option },
                     navigationActive = navigationActive,
-                    onToggleNavigation = { navigationActive = !navigationActive },
+                    onToggleNavigation = {
+                        if (navigationActive) {
+                            navigationActive = false
+                        } else if (brouterClient.isInstalled()) {
+                            navigationActive = true
+                        } else {
+                            showBRouterInstallPrompt = true
+                        }
+                    },
                     navigationLastMile = navigationLastMile,
                     initialMapCenter = savedMapCenter,
                     initialMapZoom = savedMapZoom,
@@ -637,5 +648,80 @@ fun GpxitApp(
             // this is the canonical per-Compose fix.
             StatusBarProtection()
         }
+
+        if (showBRouterInstallPrompt) {
+            BRouterInstallDialog(
+                onDismiss = { showBRouterInstallPrompt = false },
+                onInstallFromFDroid = {
+                    openUrl(context, "https://f-droid.org/packages/btools.routingapp/")
+                    showBRouterInstallPrompt = false
+                },
+                onInstallFromPlayStore = {
+                    // Try the market:// scheme first — drops users
+                    // straight into the Play Store app if present;
+                    // fall back to the web URL otherwise.
+                    if (!openUrl(context, "market://details?id=btools.routingapp")) {
+                        openUrl(
+                            context,
+                            "https://play.google.com/store/apps/details?id=btools.routingapp"
+                        )
+                    }
+                    showBRouterInstallPrompt = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BRouterInstallDialog(
+    onDismiss: () -> Unit,
+    onInstallFromFDroid: () -> Unit,
+    onInstallFromPlayStore: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            androidx.compose.material3.Text("BRouter required")
+        },
+        text = {
+            androidx.compose.material3.Text(
+                "Bike-aware offline routing is powered by the free " +
+                    "BRouter app. Install it once, download the region " +
+                    "data inside BRouter, and GPXIT will route the last " +
+                    "mile to your station along real cycle infrastructure."
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onInstallFromFDroid) {
+                androidx.compose.material3.Text("F-Droid")
+            }
+        },
+        dismissButton = {
+            androidx.compose.foundation.layout.Row {
+                androidx.compose.material3.TextButton(onClick = onInstallFromPlayStore) {
+                    androidx.compose.material3.Text("Play Store")
+                }
+                androidx.compose.material3.TextButton(onClick = onDismiss) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        }
+    )
+}
+
+/** Tries to launch an ACTION_VIEW for [url]; returns true if an activity was started. */
+private fun openUrl(context: android.content.Context, url: String): Boolean {
+    val intent = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse(url)
+    ).apply {
+        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+    return try {
+        context.startActivity(intent)
+        true
+    } catch (_: android.content.ActivityNotFoundException) {
+        false
     }
 }

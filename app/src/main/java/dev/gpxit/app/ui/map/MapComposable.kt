@@ -848,13 +848,13 @@ fun OsmMapView(
                     for (i in range) {
                         navPoints += GeoPoint(pts[i].lat, pts[i].lon)
                     }
-                    // Last-mile off-route segment to the station. Prefer
-                    // the bike-aware route from BRouter when available;
-                    // otherwise fall back to a straight line.
+                    // Last-mile off-route segment — only drawn when the
+                    // BRouter-computed polyline is available. Straight
+                    // lines across buildings/rivers are misleading, so
+                    // we refuse to guess and simply leave the branch
+                    // off until a real route is ready.
                     if (!navigationLastMile.isNullOrEmpty()) {
                         navPoints += navigationLastMile
-                    } else {
-                        navPoints += GeoPoint(dst.lat, dst.lon)
                     }
 
                     val navPolyline = Polyline().apply {
