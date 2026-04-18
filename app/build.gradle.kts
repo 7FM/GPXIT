@@ -49,6 +49,11 @@ android {
 
     buildFeatures {
         compose = true
+        // Enable AIDL so the bundled BRouter service interface
+        // (btools.routingapp.IBRouterService) is generated. We bind to
+        // it for bike-aware last-mile routing when the BRouter app is
+        // installed.
+        aidl = true
     }
 }
 

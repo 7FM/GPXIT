@@ -187,6 +187,12 @@ fun GpxitApp(
     // userDestination is set, so clearing the destination also stops
     // navigation.
     var navigationActive by remember { mutableStateOf(false) }
+    // Bike-aware last-mile geometry computed by BRouter (when
+    // installed), used for the branch-off from the GPX to the station.
+    // Null while BRouter isn't available or routing hasn't run yet —
+    // MapComposable then falls back to a straight line.
+    var navigationLastMile by remember { mutableStateOf<List<GeoPoint>?>(null) }
+    val brouterClient = remember { dev.gpxit.app.data.routing.BRouterClient(context) }
 
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
@@ -248,6 +254,34 @@ fun GpxitApp(
     // an unset target would be meaningless.
     LaunchedEffect(userDestination) {
         if (userDestination == null) navigationActive = false
+    }
+
+    // Compute the bike-aware last mile whenever nav turns on or the
+    // destination changes. The branch-off runs from the GPX point
+    // closest to the station to the station itself, so it's
+    // independent of the user's current position — no need to
+    // recompute on every location update.
+    LaunchedEffect(navigationActive, userDestination, currentRoute) {
+        if (!navigationActive) {
+            navigationLastMile = null
+            return@LaunchedEffect
+        }
+        val route = currentRoute ?: run { navigationLastMile = null; return@LaunchedEffect }
+        val dst = userDestination?.station ?: run {
+            navigationLastMile = null; return@LaunchedEffect
+        }
+        if (!brouterClient.isInstalled()) {
+            navigationLastMile = null
+            return@LaunchedEffect
+        }
+        val (idx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+            route.points, dst.lat, dst.lon
+        )
+        val branchFrom = route.points[idx]
+        navigationLastMile = brouterClient.routeBike(
+            start = GeoPoint(branchFrom.lat, branchFrom.lon),
+            end = GeoPoint(dst.lat, dst.lon)
+        )
     }
 
     // Publish whichever recommendation should drive the tracking
@@ -528,6 +562,7 @@ fun GpxitApp(
                     onSetDestination = { option -> userDestination = option },
                     navigationActive = navigationActive,
                     onToggleNavigation = { navigationActive = !navigationActive },
+                    navigationLastMile = navigationLastMile,
                     initialMapCenter = savedMapCenter,
                     initialMapZoom = savedMapZoom,
                     onMapViewportSnapshot = { c, z ->

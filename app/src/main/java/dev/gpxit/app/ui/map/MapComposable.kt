@@ -550,6 +550,13 @@ fun OsmMapView(
     highlightedStation: StationCandidate?,
     destinationStation: StationCandidate? = null,
     navigationActive: Boolean = false,
+    /**
+     * Optional bike-routed polyline from the GPX's closest-to-station
+     * point to the station itself (computed by BRouter if available).
+     * When null, MapComposable falls back to a straight line for the
+     * branch-off segment.
+     */
+    navigationLastMile: List<GeoPoint>? = null,
     nearbyStations: List<StationCandidate>,
     previewPosition: GeoPoint? = null,
     stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
@@ -841,8 +848,14 @@ fun OsmMapView(
                     for (i in range) {
                         navPoints += GeoPoint(pts[i].lat, pts[i].lon)
                     }
-                    // Last-mile off-route segment to the station itself.
-                    navPoints += GeoPoint(dst.lat, dst.lon)
+                    // Last-mile off-route segment to the station. Prefer
+                    // the bike-aware route from BRouter when available;
+                    // otherwise fall back to a straight line.
+                    if (!navigationLastMile.isNullOrEmpty()) {
+                        navPoints += navigationLastMile
+                    } else {
+                        navPoints += GeoPoint(dst.lat, dst.lon)
+                    }
 
                     val navPolyline = Polyline().apply {
                         getOutlinePaint().color = Color.rgb(46, 125, 50) // green, matches the destination pin
