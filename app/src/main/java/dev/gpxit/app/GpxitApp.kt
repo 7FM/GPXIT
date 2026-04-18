@@ -181,6 +181,13 @@ fun GpxitApp(
     var savedMapCenter by remember { mutableStateOf<GeoPoint?>(null) }
     var savedMapZoom by remember { mutableStateOf<Double?>(null) }
 
+    // Navigation mode — draws a highlighted path from the user's
+    // current position along the GPX to the destination station, with
+    // a branch-off at the closest GPX point. Only meaningful when
+    // userDestination is set, so clearing the destination also stops
+    // navigation.
+    var navigationActive by remember { mutableStateOf(false) }
+
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
     // POI dataset download state (shared with Settings for the manual button).
@@ -232,8 +239,15 @@ fun GpxitApp(
         if (newId != null && newId != lastRouteId && lastRouteId != null) {
             nearbyStations = emptyList()
             userDestination = null
+            navigationActive = false
         }
         lastRouteId = newId
+    }
+
+    // Clearing the destination pulls nav down with it — navigating to
+    // an unset target would be meaningless.
+    LaunchedEffect(userDestination) {
+        if (userDestination == null) navigationActive = false
     }
 
     // Publish whichever recommendation should drive the tracking
@@ -510,8 +524,10 @@ fun GpxitApp(
                     onStopTripTracking = {
                         dev.gpxit.app.data.tracking.TripTrackingService.stop(context)
                     },
-                    userDestinationStationId = userDestination?.station?.id,
+                    userDestinationStation = userDestination?.station,
                     onSetDestination = { option -> userDestination = option },
+                    navigationActive = navigationActive,
+                    onToggleNavigation = { navigationActive = !navigationActive },
                     initialMapCenter = savedMapCenter,
                     initialMapZoom = savedMapZoom,
                     onMapViewportSnapshot = { c, z ->

@@ -548,7 +548,8 @@ fun OsmMapView(
     userLocation: GeoPoint?,
     homeStationLocation: GeoPoint?,
     highlightedStation: StationCandidate?,
-    destinationStationId: String? = null,
+    destinationStation: StationCandidate? = null,
+    navigationActive: Boolean = false,
     nearbyStations: List<StationCandidate>,
     previewPosition: GeoPoint? = null,
     stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
@@ -816,10 +817,49 @@ fun OsmMapView(
                     }
                 }
 
+                // Navigation overlay — a bright highlighted path from
+                // the user's current position along the GPX up to the
+                // point closest to the destination station, then a
+                // straight branch off-route to the station itself.
+                // Drawn on top of the route polyline so it reads as
+                // "follow this".
+                val dst = destinationStation
+                if (navigationActive && dst != null && userLocation != null) {
+                    val pts = routeInfo.points
+                    val (userIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+                        pts, userLocation.latitude, userLocation.longitude
+                    )
+                    val (dstIdx, _) = dev.gpxit.app.data.gpx.findClosestPointIndex(
+                        pts, dst.lat, dst.lon
+                    )
+                    val range = if (userIdx <= dstIdx) userIdx..dstIdx
+                    else dstIdx..userIdx  // destination is behind — draw anyway
+                    val navPoints = ArrayList<GeoPoint>(range.count() + 2)
+                    // Short onto-route segment so the user sees "head to
+                    // the polyline from here".
+                    navPoints += GeoPoint(userLocation.latitude, userLocation.longitude)
+                    for (i in range) {
+                        navPoints += GeoPoint(pts[i].lat, pts[i].lon)
+                    }
+                    // Last-mile off-route segment to the station itself.
+                    navPoints += GeoPoint(dst.lat, dst.lon)
+
+                    val navPolyline = Polyline().apply {
+                        getOutlinePaint().color = Color.rgb(46, 125, 50) // green, matches the destination pin
+                        getOutlinePaint().strokeWidth = 14f
+                        getOutlinePaint().strokeCap = Paint.Cap.ROUND
+                        getOutlinePaint().strokeJoin = Paint.Join.ROUND
+                        getOutlinePaint().alpha = 200
+                        setPoints(navPoints)
+                    }
+                    map.overlays.add(navPolyline)
+                    contentOverlays.add(navPolyline)
+                }
+
                 // Station markers
                 for (station in routeInfo.stations) {
                     val isHighlighted = highlightedStation?.id == station.id
-                    val isDestination = destinationStationId == station.id
+                    val isDestination = destinationStation?.id == station.id
                     val label = stationLabels[station.id]
                     val arr = label?.arrivalAtStation?.let { labelTimeFormatter.format(it) }
                     val dep = label?.nextTrainDeparture?.let { labelTimeFormatter.format(it) }

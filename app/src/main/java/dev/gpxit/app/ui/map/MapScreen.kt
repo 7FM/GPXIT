@@ -99,8 +99,10 @@ fun MapScreen(
     tripTrackingActive: Boolean = false,
     onStartTripTracking: () -> Unit = {},
     onStopTripTracking: () -> Unit = {},
-    userDestinationStationId: String? = null,
+    userDestinationStation: StationCandidate? = null,
     onSetDestination: (ConnectionOption?) -> Unit = {},
+    navigationActive: Boolean = false,
+    onToggleNavigation: () -> Unit = {},
     initialMapCenter: GeoPoint? = null,
     initialMapZoom: Double? = null,
     onMapViewportSnapshot: (center: GeoPoint, zoom: Double) -> Unit = { _, _ -> },
@@ -293,7 +295,8 @@ fun MapScreen(
                 userLocation = userLocation,
                 homeStationLocation = homeStationLocation,
                 highlightedStation = highlightedStation,
-                destinationStationId = userDestinationStationId,
+                destinationStation = userDestinationStation,
+                navigationActive = navigationActive,
                 nearbyStations = nearbyStations,
                 previewPosition = previewPosition,
                 stationLabels = stationLabels,
@@ -613,7 +616,7 @@ fun MapScreen(
                     // the tracking notification to home in on THIS station
                     // (and whichever train it's already loaded) instead
                     // of the auto-picked best-arrival option.
-                    val isThisDestination = selectedStationInfo.station.id == userDestinationStationId
+                    val isThisDestination = selectedStationInfo.station.id == userDestinationStation?.id
                     OutlinedButton(
                         onClick = {
                             if (isThisDestination) onSetDestination(null)
@@ -627,6 +630,21 @@ fun MapScreen(
                             if (isThisDestination) "Clear destination"
                             else "Set as destination"
                         )
+                    }
+                    // Navigation toggle — only available for the pinned
+                    // destination since it's what the nav path points at.
+                    if (isThisDestination) {
+                        Button(
+                            onClick = onToggleNavigation,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        ) {
+                            Text(
+                                if (navigationActive) "Stop navigation"
+                                else "Start navigation"
+                            )
+                        }
                     }
                     ExtendedFloatingActionButton(
                         onClick = {
