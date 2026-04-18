@@ -212,15 +212,29 @@ private fun WordmarkBlock(
     val c = LocalHomePalette.current
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // App icon as the brand mark next to the wordmark — same
-            // adaptive launcher icon the home-screen tile uses.
-            Image(
-                painter = painterResource(dev.gpxit.app.R.mipmap.ic_launcher),
-                contentDescription = null,
+            // App icon as the brand mark next to the wordmark. We can't
+            // render `R.mipmap.ic_launcher` directly via painterResource
+            // because it's an adaptive icon (AdaptiveIconDrawable XML)
+            // which Compose's resource loader only supports for vectors
+            // / rasters. Rebuild the same visual by stacking the
+            // launcher's foreground PNG over its white background inside
+            // a rounded-corner box — matches the home-screen tile.
+            Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp)),
-            )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(dev.gpxit.app.R.drawable.ic_launcher_foreground),
+                    contentDescription = null,
+                    // Foreground PNGs are drawn on a 108 dp canvas with
+                    // a 72 dp safe zone; scale up so the glyph fills the
+                    // 56 dp rounded box the way the launcher renders it.
+                    modifier = Modifier.size(84.dp),
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Text(
                 text = "GPXIT",
