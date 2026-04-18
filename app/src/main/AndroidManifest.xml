@@ -40,11 +40,38 @@
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
 
-            <!-- Open GPX files directly -->
+            <!-- Open GPX files: the easy path when a file manager or
+                 download already knows the proper MIME type. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/gpx+xml" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/x-gpx+xml" />
+            </intent-filter>
+
+            <!-- Open GPX files by extension — covers browsers and file
+                 managers that hand us application/octet-stream or a
+                 wildcard type but get the path right. Multiple
+                 pathPatterns because Android's `.*` matching chokes on
+                 paths with extra dots (e.g. "tour.2026-04.gpx"). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.gpx" />
+                <data android:pathPattern=".*\\..*\\.gpx" />
+                <data android:pathPattern=".*\\..*\\..*\\.gpx" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.gpx" />
             </intent-filter>
         </activity>
 

@@ -197,6 +197,11 @@ class TripTrackingService : Service() {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Show full content on the lock screen so the rider can
+            // glance at progress / next train without unlocking. The
+            // channel's lockscreenVisibility also has to be PUBLIC for
+            // this flag to take effect on API 26+ — see createChannel().
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
     }
 
@@ -277,6 +282,11 @@ class TripTrackingService : Service() {
             setShowBadge(false)
             enableLights(false)
             enableVibration(false)
+            // Show the full contents on the lock screen — matches the
+            // per-notification VISIBILITY_PUBLIC. On API 26+ the
+            // channel's setting is the upper bound, so without this
+            // the per-notification flag is capped to PRIVATE.
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         }
         nm.createNotificationChannel(channel)
     }
