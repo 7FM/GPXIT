@@ -174,6 +174,13 @@ fun GpxitApp(
     // imports a new route (so a stale choice can't leak across trips).
     var userDestination by remember { mutableStateOf<ConnectionOption?>(null) }
 
+    // Last known map pan/zoom — survives the map composable being
+    // torn down on navigation to decision/settings, so coming back
+    // restores exactly what the user was looking at instead of
+    // snapping to the route extent.
+    var savedMapCenter by remember { mutableStateOf<GeoPoint?>(null) }
+    var savedMapZoom by remember { mutableStateOf<Double?>(null) }
+
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
     // POI dataset download state (shared with Settings for the manual button).
@@ -505,6 +512,12 @@ fun GpxitApp(
                     },
                     userDestinationStationId = userDestination?.station?.id,
                     onSetDestination = { option -> userDestination = option },
+                    initialMapCenter = savedMapCenter,
+                    initialMapZoom = savedMapZoom,
+                    onMapViewportSnapshot = { c, z ->
+                        savedMapCenter = c
+                        savedMapZoom = z
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }

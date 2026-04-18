@@ -1,14 +1,22 @@
 package dev.gpxit.app.ui.map
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -72,39 +80,56 @@ private fun createPreviewDotBitmap(): Bitmap {
     return bmp
 }
 
+/**
+ * Current-position marker in the style most mobile maps use: a blue
+ * circle with a triangular "heading beam" pointing up (north) by
+ * default. The marker is rotated to the device compass heading at
+ * runtime via Marker.rotation (with isFlat = true, so the rotation is
+ * applied in map coordinates regardless of gestural map rotation).
+ */
 private fun createBlueDotBitmap(): Bitmap {
-    val size = 56
+    val size = 96                  // larger canvas so the arrow has room
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
-    val center = size / 2f
+    val cx = size / 2f
+    val cy = size / 2f
+    val circleR = 18f
+    val arrowTipY = cy - 36f       // above the circle
+    val arrowBaseY = cy - circleR * 0.2f
+    val arrowHalfBase = 16f
 
-    // Shadow
-    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(60, 0, 0, 0)
+    // Heading beam — wide translucent wedge behind the dot so it reads
+    // as direction-of-travel at a glance, like Google Maps.
+    val beamPath = android.graphics.Path().apply {
+        moveTo(cx, arrowTipY)
+        lineTo(cx - arrowHalfBase, arrowBaseY)
+        lineTo(cx + arrowHalfBase, arrowBaseY)
+        close()
+    }
+    val beamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(160, 66, 133, 244)
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(center, center + 2f, 20f, shadowPaint)
+    canvas.drawPath(beamPath, beamPaint)
 
-    // White border
+    // Shadow under the dot.
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(70, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, cy + 2f, circleR + 3f, shadowPaint)
+
+    // White ring + blue fill — two circles for a crisp border.
     val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(center, center, 20f, borderPaint)
-
-    // Blue fill
+    canvas.drawCircle(cx, cy, circleR + 3f, borderPaint)
     val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(66, 133, 244)
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(center, center, 16f, fillPaint)
-
-    // Inner highlight
-    val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(130, 177, 255)
-        style = Paint.Style.FILL
-    }
-    canvas.drawCircle(center - 4f, center - 4f, 6f, highlightPaint)
+    canvas.drawCircle(cx, cy, circleR, fillPaint)
 
     return bmp
 }
@@ -532,7 +557,15 @@ fun OsmMapView(
     onMapRotationChanged: (Float) -> Unit,
     onZoomLevelChanged: (Double) -> Unit = {},
     onViewportChanged: (north: Double, south: Double, east: Double, west: Double) -> Unit = { _, _, _, _ -> },
+    onMapViewportSnapshot: ((center: GeoPoint, zoom: Double) -> Unit)? = null,
     onGetMapCenter: ((center: GeoPoint, radiusMeters: Int) -> Unit)? = null,
+    /**
+     * Restore the map to this center + zoom instead of the default
+     * "zoom to route extent" behaviour. Used to preserve the user's
+     * pan/zoom across a round-trip to the Take-me-home screen.
+     */
+    initialMapCenter: GeoPoint? = null,
+    initialMapZoom: Double? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -570,8 +603,12 @@ fun OsmMapView(
             setBuiltInZoomControls(false)
             isHorizontalMapRepetitionEnabled = false
             isVerticalMapRepetitionEnabled = false
-            controller.setZoom(13.0)
-            controller.setCenter(GeoPoint(51.0, 10.0))
+            // If we have a saved viewport (round-trip from another
+            // screen) restore it; otherwise start at a reasonable
+            // default that will be replaced by the route-extent zoom
+            // on first import.
+            controller.setZoom(initialMapZoom ?: 13.0)
+            controller.setCenter(initialMapCenter ?: GeoPoint(51.0, 10.0))
 
             // Rotation gesture overlay
             val rotationOverlay = RotationGestureOverlay(this)
@@ -626,12 +663,60 @@ fun OsmMapView(
             if (n != lastN || s != lastS || e != lastE || w != lastW) {
                 lastN = n; lastS = s; lastE = e; lastW = w
                 onViewportChanged(n, s, e, w)
+                onMapViewportSnapshot?.invoke(
+                    GeoPoint(
+                        mapView.mapCenter.latitude,
+                        mapView.mapCenter.longitude
+                    ),
+                    mapView.zoomLevelDouble
+                )
             }
             kotlinx.coroutines.delay(200)
         }
     }
 
-    val hasInitialZoom = remember { mutableMapOf("done" to false) }
+    // If a saved viewport is being restored, we've already "done" the
+    // initial zoom — don't fight the user by re-zooming to route extent.
+    val hasInitialZoom = remember { mutableMapOf("done" to (initialMapCenter != null)) }
+
+    // Compass heading in degrees (clockwise from true north). Default
+    // 0 = north. Updated from the rotation-vector sensor below.
+    var deviceHeading by remember { mutableFloatStateOf(0f) }
+
+    // Rotation-vector sensor → azimuth. Sampled at UI rate, but we
+    // only bump the state when the heading changes by more than a
+    // couple of degrees to avoid flooding recomposition.
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        val rotationSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        if (sensorManager == null || rotationSensor == null) {
+            onDispose {}
+        } else {
+            val rotationMatrix = FloatArray(9)
+            val orientation = FloatArray(3)
+            var lastReported = Float.NaN
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
+                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                    SensorManager.getOrientation(rotationMatrix, orientation)
+                    val azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
+                        .let { if (it < 0) it + 360f else it }
+                    if (lastReported.isNaN() ||
+                        kotlin.math.abs(((azimuth - lastReported + 540f) % 360f) - 180f) > 2f
+                    ) {
+                        lastReported = azimuth
+                        deviceHeading = azimuth
+                    }
+                }
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            }
+            sensorManager.registerListener(
+                listener, rotationSensor, SensorManager.SENSOR_DELAY_UI
+            )
+            onDispose { sensorManager.unregisterListener(listener) }
+        }
+    }
 
     // Handle map commands
     LaunchedEffect(mapCommand) {
@@ -833,13 +918,18 @@ fun OsmMapView(
                 contentOverlays.add(homeMarker)
             }
 
-            // User location: blue dot
+            // User location: blue dot with a compass-driven heading beam.
+            // isFlat = true applies marker.rotation in map coordinates
+            // so the arrow points to the user's real-world heading
+            // regardless of how the map itself is rotated.
             if (userLocation != null) {
                 val userMarker = Marker(map).apply {
                     position = userLocation
                     title = "You are here"
                     icon = BitmapDrawable(context.resources, blueDotBitmap)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    isFlat = true
+                    rotation = deviceHeading
                 }
                 map.overlays.add(userMarker)
                 contentOverlays.add(userMarker)

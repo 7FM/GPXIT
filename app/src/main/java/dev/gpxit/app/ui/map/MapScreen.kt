@@ -101,6 +101,9 @@ fun MapScreen(
     onStopTripTracking: () -> Unit = {},
     userDestinationStationId: String? = null,
     onSetDestination: (ConnectionOption?) -> Unit = {},
+    initialMapCenter: GeoPoint? = null,
+    initialMapZoom: Double? = null,
+    onMapViewportSnapshot: (center: GeoPoint, zoom: Double) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -336,6 +339,9 @@ fun MapScreen(
                     pendingMapCenterCallback?.invoke(center, radius)
                     pendingMapCenterCallback = null
                 },
+                onMapViewportSnapshot = onMapViewportSnapshot,
+                initialMapCenter = initialMapCenter,
+                initialMapZoom = initialMapZoom,
                 modifier = Modifier.fillMaxSize()
             )
 
