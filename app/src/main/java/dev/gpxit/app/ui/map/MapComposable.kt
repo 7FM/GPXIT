@@ -81,55 +81,59 @@ private fun createPreviewDotBitmap(): Bitmap {
 }
 
 /**
- * Current-position marker in the style most mobile maps use: a blue
- * circle with a triangular "heading beam" pointing up (north) by
+ * Current-position marker as a chevron "navigation triangle" — the
+ * shape Google Maps uses while you're navigating. A filled blue
+ * arrowhead with a concave notch at its base, pointing up (north) by
  * default. The marker is rotated to the device compass heading at
- * runtime via Marker.rotation (with isFlat = true, so the rotation is
- * applied in map coordinates regardless of gestural map rotation).
+ * runtime via Marker.rotation (with isFlat = true, so the rotation
+ * is applied in map coordinates regardless of gestural map rotation).
  */
 private fun createBlueDotBitmap(): Bitmap {
-    val size = 96                  // larger canvas so the arrow has room
+    val size = 72
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val cx = size / 2f
-    val cy = size / 2f
-    val circleR = 18f
-    val arrowTipY = cy - 36f       // above the circle
-    val arrowBaseY = cy - circleR * 0.2f
-    val arrowHalfBase = 16f
 
-    // Heading beam — wide translucent wedge behind the dot so it reads
-    // as direction-of-travel at a glance, like Google Maps.
-    val beamPath = android.graphics.Path().apply {
-        moveTo(cx, arrowTipY)
-        lineTo(cx - arrowHalfBase, arrowBaseY)
-        lineTo(cx + arrowHalfBase, arrowBaseY)
+    // Chevron geometry, bitmap-center at (cx, 36):
+    //   tip ........................ (cx, 4)
+    //   right wing .................. (cx + 20, 60)
+    //   center notch ................ (cx, 46)  // concave bottom
+    //   left wing ................... (cx - 20, 60)
+    val chevron = android.graphics.Path().apply {
+        moveTo(cx, 4f)
+        lineTo(cx + 20f, 60f)
+        lineTo(cx, 46f)
+        lineTo(cx - 20f, 60f)
         close()
     }
-    val beamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(160, 66, 133, 244)
-        style = Paint.Style.FILL
-    }
-    canvas.drawPath(beamPath, beamPaint)
 
-    // Shadow under the dot.
+    // Drop shadow
     val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(70, 0, 0, 0)
+        color = Color.argb(90, 0, 0, 0)
         style = Paint.Style.FILL
+        maskFilter = android.graphics.BlurMaskFilter(
+            3f, android.graphics.BlurMaskFilter.Blur.NORMAL
+        )
     }
-    canvas.drawCircle(cx, cy + 2f, circleR + 3f, shadowPaint)
+    canvas.save()
+    canvas.translate(0f, 2f)
+    canvas.drawPath(chevron, shadowPaint)
+    canvas.restore()
 
-    // White ring + blue fill — two circles for a crisp border.
-    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        style = Paint.Style.FILL
-    }
-    canvas.drawCircle(cx, cy, circleR + 3f, borderPaint)
+    // White outline (stroke on top of fill)
     val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(66, 133, 244)
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(cx, cy, circleR, fillPaint)
+    canvas.drawPath(chevron, fillPaint)
+    val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
+    }
+    canvas.drawPath(chevron, outlinePaint)
 
     return bmp
 }

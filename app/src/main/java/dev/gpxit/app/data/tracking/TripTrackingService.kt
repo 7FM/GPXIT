@@ -196,7 +196,9 @@ class TripTrackingService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Pre-Oreo fallback — matches the channel DEFAULT importance
+            // so older devices also show the notification prominently.
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             // Show full content on the lock screen so the rider can
             // glance at progress / next train without unlocking. The
             // channel's lockscreenVisibility also has to be PUBLIC for
@@ -276,12 +278,21 @@ class TripTrackingService : Service() {
         if (nm.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID, "Trip tracking",
-            NotificationManager.IMPORTANCE_LOW
+            // DEFAULT (not LOW) so the notification lives in the main
+            // shade section instead of the collapsed "Silent" group —
+            // that way the rider can actually see it at a glance like
+            // a media-playback notification.
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = "Live progress while a ride is being tracked"
             setShowBadge(false)
             enableLights(false)
             enableVibration(false)
+            // DEFAULT importance normally makes a sound on first post.
+            // We want prominent display but silent — explicitly null
+            // the sound and vibration.
+            setSound(null, null)
+            vibrationPattern = longArrayOf(0L)
             // Show the full contents on the lock screen — matches the
             // per-notification VISIBILITY_PUBLIC. On API 26+ the
             // channel's setting is the upper bound, so without this
@@ -300,7 +311,11 @@ class TripTrackingService : Service() {
     companion object {
         const val ACTION_START = "dev.gpxit.app.tracking.ACTION_START"
         const val ACTION_STOP = "dev.gpxit.app.tracking.ACTION_STOP"
-        const val CHANNEL_ID = "trip_tracking"
+        // v2 forces a fresh channel with DEFAULT importance — existing
+        // channel importance can't be raised by the app after creation,
+        // and the old "trip_tracking" was IMPORTANCE_LOW which lands in
+        // the "Silent" shade group on Android 13+.
+        const val CHANNEL_ID = "trip_tracking_v2"
         const val NOTIFICATION_ID = 42
 
         private val _state = MutableStateFlow(TripState())
