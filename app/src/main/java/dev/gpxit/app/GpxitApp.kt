@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -196,6 +197,20 @@ fun GpxitApp(
     // app installed. We refuse to guess with a straight line because
     // it's misleading across buildings, rivers, motorways etc.
     var showBRouterInstallPrompt by remember { mutableStateOf(false) }
+    // Live BRouter install state — re-checked on every resume so the
+    // Import-screen setup card auto-hides when the user returns from
+    // F-Droid / Play Store after installing.
+    var brouterInstalled by remember { mutableStateOf(brouterClient.isInstalled()) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                brouterInstalled = brouterClient.isInstalled()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
@@ -353,7 +368,9 @@ fun GpxitApp(
                     onNavigateToMap = { navController.navigate("map") },
                     onNavigateToSettings = { navController.navigate("settings") },
                     onDownloadOfflineMap = { scope.launch { triggerDownload(importRouteInfo, mapTileDownloader) { downloadState = it } } },
-                    downloadState = downloadState
+                    downloadState = downloadState,
+                    brouterInstalled = brouterInstalled,
+                    onInstallBRouter = { showBRouterInstallPrompt = true }
                 )
             }
             composable("map") {

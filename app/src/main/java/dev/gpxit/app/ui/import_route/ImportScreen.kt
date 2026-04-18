@@ -41,6 +41,8 @@ fun ImportScreen(
     onNavigateToSettings: () -> Unit,
     onDownloadOfflineMap: () -> Unit = {},
     downloadState: dev.gpxit.app.GpxitDownloadState = dev.gpxit.app.GpxitDownloadState(),
+    brouterInstalled: Boolean = true,
+    onInstallBRouter: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -134,6 +136,43 @@ fun ImportScreen(
                     )
                     OutlinedButton(onClick = onNavigateToSettings) {
                         Text("Settings")
+                    }
+                }
+            }
+        }
+
+        // Optional setup card: BRouter powers offline bike-aware
+        // navigation. Unlike the home station this is NOT required for
+        // the rest of the app, so it's styled neutrally (tertiary
+        // container, not error) and the rest of the UI stays enabled.
+        // Appears whenever BRouter isn't installed and auto-hides once
+        // it is — same lifecycle as the home-station card.
+        if (!brouterInstalled) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                ),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            text = "BRouter — optional",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Text(
+                            text = "Install for offline bike-aware navigation",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                    OutlinedButton(onClick = onInstallBRouter) {
+                        Text("Install")
                     }
                 }
             }
