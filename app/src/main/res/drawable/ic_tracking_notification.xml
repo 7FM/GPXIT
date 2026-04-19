@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Notification small icon for TripTrackingService. Must be monochrome
+  (white-on-transparent) and flat so Android's notification rendering
+  tints it correctly. Bike-chevron glyph sized to fit the 24dp
+  statusbar slot.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2 L20,22 L12,18 L4,22 Z" />
+</vector>

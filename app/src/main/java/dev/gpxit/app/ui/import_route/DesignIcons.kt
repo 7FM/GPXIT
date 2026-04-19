@@ -112,4 +112,83 @@ object DesignIcons {
         "Home",
         "M 4 11 L 12 4 L 20 11 V 20 H 14 V 14 H 10 V 20 H 4 Z"
     )
+
+    /** IconMinus — single horizontal bar. */
+    val Minus: ImageVector = outline(
+        "Minus",
+        "M 5 12 H 19"
+    )
+
+    /** IconFullscreen — four corner brackets. */
+    val Fullscreen: ImageVector = outline(
+        "Fullscreen",
+        "M 4 9 V 4 H 9 M 20 9 V 4 H 15 M 4 15 V 20 H 9 M 20 15 V 20 H 15"
+    )
+
+    /** IconSearch — circle with handle. */
+    val Search: ImageVector = outlineMulti(
+        "Search",
+        "M 17 11 A 6 6 0 1 1 5 11 A 6 6 0 1 1 17 11 Z",
+        "M 16 16 L 20 20",
+    )
+
+    /** IconMenu — three horizontal bars (Material hamburger). */
+    val Menu: ImageVector = outline(
+        "Menu",
+        "M 4 7 H 20 M 4 12 H 20 M 4 17 H 20"
+    )
+
+    /** IconTrain — rounded rect body + window + legs. */
+    val Train: ImageVector = outlineMulti(
+        "Train",
+        "M 8 3 H 16 A 3 3 0 0 1 19 6 V 14 A 3 3 0 0 1 16 17 H 8 A 3 3 0 0 1 5 14 V 6 A 3 3 0 0 1 8 3 Z",
+        "M 5 11 H 19",
+        "M 9 17 L 7 21",
+        "M 15 17 L 17 21",
+    )
+
+    /** IconMountain — two peaks. */
+    val Mountain: ImageVector = outline(
+        "Mountain",
+        "M 3 20 L 9 10 L 13 15 L 17 8 L 21 20 Z"
+    )
+
+    /** IconClock — circle with hour/minute hands. */
+    val Clock: ImageVector = outlineMulti(
+        "Clock",
+        "M 21 12 A 9 9 0 1 1 3 12 A 9 9 0 1 1 21 12 Z",
+        "M 12 7 V 12 L 15 14",
+    )
+
+    /** IconHourglass — wait buffer icon for Settings. */
+    val Hourglass: ImageVector = outlineMulti(
+        "Hourglass",
+        "M 6 4 H 18 V 8 H 6 Z",
+        "M 6 16 H 18 V 20 H 6 Z",
+        "M 6 8 L 12 12 L 18 8 M 6 16 L 12 12 L 18 16",
+    )
+
+    /** IconChevronUp — caret up. */
+    val ChevronUp: ImageVector = outline(
+        "ChevronUp",
+        "M 6 15 L 12 9 L 18 15"
+    )
+
+    /** IconChevronDown — caret down. */
+    val ChevronDown: ImageVector = outline(
+        "ChevronDown",
+        "M 6 9 L 12 15 L 18 9"
+    )
+
+    /** IconChevronLeft — caret left. */
+    val ChevronLeft: ImageVector = outline(
+        "ChevronLeft",
+        "M 15 6 L 9 12 L 15 18"
+    )
+
+    /** IconChevronRight — caret right. */
+    val ChevronRight: ImageVector = outline(
+        "ChevronRight",
+        "M 9 6 L 15 12 L 9 18"
+    )
 }

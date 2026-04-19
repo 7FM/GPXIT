@@ -6,9 +6,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,10 +18,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import de.schildbach.pte.dto.Product
 import dev.gpxit.app.data.gpx.findClosestPointIndex
@@ -28,7 +33,6 @@ import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
 import dev.gpxit.app.domain.ConnectionOption
 import dev.gpxit.app.domain.StationCandidate
-import dev.gpxit.app.ui.decision.DecisionScreen
 import dev.gpxit.app.ui.decision.DecisionViewModel
 import dev.gpxit.app.ui.import_route.ImportScreen
 import dev.gpxit.app.ui.import_route.ImportViewModel
@@ -147,13 +151,38 @@ fun GpxitApp(
         if (needed.isNotEmpty()) permissionLauncher.launch(needed.toTypedArray())
     }
 
-    // GPS location
+    // GPS location + accuracy. The accuracy value drives a
+    // translucent blue ring around the blue-chevron marker so the
+    // user can see how tight their fix is. `Location.hasAccuracy()`
+    // is false when the provider doesn't publish one (e.g. the
+    // network provider on rare occasions) — we just skip the ring in
+    // that case rather than drawing a bogus radius.
     var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    var userAccuracyMeters by remember { mutableStateOf<Float?>(null) }
+    var lastLocationUpdateMs by remember { mutableStateOf(0L) }
 
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
             locationService.locationUpdates(intervalMs = 5000).collect { location ->
                 userLocation = GeoPoint(location.latitude, location.longitude)
+                userAccuracyMeters = if (location.hasAccuracy()) location.accuracy else null
+                lastLocationUpdateMs = System.currentTimeMillis()
+            }
+        }
+    }
+
+    // Staleness watcher: if we haven't heard from the provider in
+    // ~15s, treat the fix as lost — clear the accuracy so the map
+    // draws the hollow "searching" chevron and drops the ring, same
+    // convention Google Maps / Apple Maps use while re-acquiring.
+    // We leave `userLocation` alone so the last-known position still
+    // renders at its map coordinates instead of vanishing.
+    LaunchedEffect(hasLocationPermission) {
+        while (hasLocationPermission) {
+            kotlinx.coroutines.delay(3000)
+            val since = System.currentTimeMillis() - lastLocationUpdateMs
+            if (lastLocationUpdateMs > 0L && since > 15_000 && userAccuracyMeters != null) {
+                userAccuracyMeters = null
             }
         }
     }
@@ -328,12 +357,17 @@ fun GpxitApp(
     // Resolve home station coords if missing
     val prefs by settingsViewModel.preferences.collectAsState()
 
-    // If the user flips the master tracking switch off while the service
-    // is live, stop it immediately so we aren't holding GPS against
-    // their preference.
-    LaunchedEffect(prefs.tripTrackingEnabled, tripTrackingState.isActive) {
-        if (!prefs.tripTrackingEnabled && tripTrackingState.isActive) {
-            dev.gpxit.app.data.tracking.TripTrackingService.stop(context)
+    // The Trip-tracking master switch (previously a toggle in
+    // Settings) was removed when the bottom-nav Track button became
+    // the sole user-facing control. The DataStore value can still be
+    // FALSE on devices where the user flipped it off before the UI
+    // went away — in that state a kill-switch effect here used to
+    // shut the service down 30ms after every start, which looked
+    // exactly like a crash. Migrate any stuck-false value back to
+    // true on app launch and drop the kill-switch entirely.
+    LaunchedEffect(Unit) {
+        if (!prefsRepository.preferences.first().tripTrackingEnabled) {
+            prefsRepository.setTripTrackingEnabled(true)
         }
     }
 
@@ -350,6 +384,34 @@ fun GpxitApp(
 
     GpxitTheme {
         val navController = rememberNavController()
+
+        // Single source of truth for system-bar icon tint. Map and
+        // Settings are light-only per the design, so they ALWAYS want
+        // dark icons. Every other screen follows the device night-mode
+        // setting (light icons in dark mode, dark icons in light mode),
+        // which matches what the Import screen wants. Running this as
+        // a SideEffect on a currentBackStackEntry-keyed state ensures
+        // the tint updates on every navigation push/pop; no more
+        // racing with GpxitTheme's own SideEffect.
+        val navEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navEntry?.destination?.route
+        val wantLightScrim = currentRoute == "map" || currentRoute == "settings"
+        val systemIsDark = isSystemInDarkTheme()
+        val view = LocalView.current
+        if (!view.isInEditMode) {
+            SideEffect {
+                val window = (view.context as? android.app.Activity)?.window
+                    ?: return@SideEffect
+                val controller = WindowCompat.getInsetsController(window, view)
+                // isAppearanceLightStatusBars = true  → DARK icons (for
+                // a LIGHT background). That's what both map/settings
+                // need unconditionally, and what any non-dark-mode
+                // screen needs elsewhere.
+                val appearLight = wantLightScrim || !systemIsDark
+                controller.isAppearanceLightStatusBars = appearLight
+                controller.isAppearanceLightNavigationBars = appearLight
+            }
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
         NavHost(navController = navController, startDestination = "import") {
@@ -407,6 +469,20 @@ fun GpxitApp(
                     initialMapCommand = pendingMapCommand,
                     zoomToStation = zoomToStationTrigger,
                     onZoomToStationConsumed = { zoomToStationTrigger = null },
+                    onOpenStationDetail = { option ->
+                        // Tapped from a Take-me-home card/row: reuse
+                        // the full ConnectionOption we already have
+                        // (no re-query) to open the station detail
+                        // modal sheet directly, with the Set /
+                        // Navigate actions. Camera flies in as well
+                        // so the pin is visible once the sheet is
+                        // dismissed.
+                        highlightedStation = option.station
+                        zoomToStationTrigger = option.station
+                        selectedStationInfo = option
+                        isLoadingStationInfo = false
+                    },
+                    userAccuracyMeters = userAccuracyMeters,
                     selectedStationInfo = selectedStationInfo,
                     isLoadingStationInfo = isLoadingStationInfo,
                     isSearchingNearby = isSearchingNearby,
@@ -420,7 +496,6 @@ fun GpxitApp(
                             val lon = loc?.longitude ?: route.points.firstOrNull()?.lon ?: return@let
                             decisionViewModel.findConnectionsHome(route, lat, lon)
                         }
-                        navController.navigate("decision")
                     },
                     onSearchNearby = { mapCenter, radiusMeters ->
                         scope.launch {
@@ -609,41 +684,12 @@ fun GpxitApp(
                         savedMapCenter = c
                         savedMapZoom = z
                     },
+                    decisionOptions = decisionState.options,
+                    isDecisionLoading = decisionState.isLoading,
+                    homeStationName = prefs.homeStationName,
+                    avgSpeedKmh = prefs.avgSpeedKmh,
+                    tripSnapshot = tripTrackingState.snapshot,
                     onBack = { navController.popBackStack() }
-                )
-            }
-            composable("decision") {
-                val routeInfo by importViewModel.routeInfo.collectAsState()
-                DecisionScreen(
-                    viewModel = decisionViewModel,
-                    onRefresh = {
-                        routeInfo?.let { route ->
-                            val loc = userLocation
-                            val lat = loc?.latitude ?: route.points.firstOrNull()?.lat ?: return@let
-                            val lon = loc?.longitude ?: route.points.firstOrNull()?.lon ?: return@let
-                            decisionViewModel.findConnectionsHome(route, lat, lon)
-                        }
-                    },
-                    onSearchNearby = {
-                        val loc = userLocation
-                        if (loc != null) {
-                            decisionViewModel.searchNearby(loc.latitude, loc.longitude)
-                        }
-                    },
-                    onOptionClick = { option ->
-                        // DecisionScreen already has full connection data —
-                        // reuse it so the map's bottom sheet opens straight
-                        // to the "set destination / navigate by bike" view
-                        // without re-querying the backend.
-                        highlightedStation = option.station
-                        zoomToStationTrigger = option.station
-                        selectedStationInfo = option
-                        isLoadingStationInfo = false
-                        navController.popBackStack()
-                    },
-                    onBack = { navController.popBackStack() },
-                    userLat = userLocation?.latitude,
-                    userLon = userLocation?.longitude
                 )
             }
             composable("settings") {

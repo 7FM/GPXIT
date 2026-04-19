@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import dev.gpxit.app.data.gpx.routeElevationAtDistance
 import dev.gpxit.app.domain.RouteInfo
 import dev.gpxit.app.domain.StationCandidate
+import dev.gpxit.app.ui.theme.LocalMapPalette
 import kotlin.math.floor
 
 @Composable
@@ -104,11 +106,16 @@ fun ElevationProfile(
 
     val density = LocalDensity.current
     val textSizePx = with(density) { 10.sp.toPx() }
+    // Read directly from the map's warm-cream palette so the chart
+    // stays light even when the device is in dark mode. Previously
+    // we picked up MaterialTheme.colorScheme which inverts at night
+    // and makes the chart fight the surrounding sheet.
+    val palette = LocalMapPalette.current
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(palette.surface)
     ) {
         // Stats bar — extra bottom padding so the top gridline label below doesn't
         // visually crowd these numbers.
@@ -121,12 +128,12 @@ fun ElevationProfile(
             Text(
                 text = "%.0fm - %.0fm".format(minEle, maxEle),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = palette.inkSoft
             )
             Text(
                 text = "  \u2191%.0fm \u2193%.0fm".format(totalAscent, totalDescent),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = palette.inkSoft
             )
             val cur = cursorDistance
             if (cur != null) {
@@ -134,7 +141,7 @@ fun ElevationProfile(
                 Text(
                     text = "  %.1fkm @ %.0fm".format(cur / 1000.0, curEle ?: 0.0),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = palette.accentDark
                 )
             }
         }
@@ -186,9 +193,12 @@ fun ElevationProfile(
                     (h - bottomPad - (ele - minEle) / eleRange * usableH).toFloat()
 
                 // --- Horizontal grid lines ---
-                val gridPaint = Color(0x33888888)
+                // palette.line (8% black) is too faint for a dashed
+                // 1px line on the cream surface. Bump to 28% black so
+                // the ticks actually read without screaming.
+                val gridPaint = Color(0x47000000)
                 val labelPaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.GRAY
+                    color = palette.inkSoft.toArgb()
                     textSize = textSizePx
                     isAntiAlias = true
                 }
@@ -240,14 +250,14 @@ fun ElevationProfile(
                 fillPath.lineTo(xFor(points.last().distanceFromStart), h)
                 fillPath.close()
 
-                drawPath(fillPath, Color(0x3366BB6A), style = Fill)
-                drawPath(path, Color(0xFF4CAF50), style = Stroke(width = 2f))
+                drawPath(fillPath, palette.accentTint, style = Fill)
+                drawPath(path, palette.accent, style = Stroke(width = 2f))
 
                 // --- Station markers (within visible range only) ---
                 for (station in visibleStations) {
                     val sx = xFor(station.distanceAlongRouteMeters)
                     drawLine(
-                        Color(0xFFE91E63),
+                        palette.accentDark,
                         Offset(sx, 0f),
                         Offset(sx, h),
                         strokeWidth = 1.5f

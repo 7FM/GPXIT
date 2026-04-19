@@ -13,9 +13,11 @@ import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dev.gpxit.app.MainActivity
+import dev.gpxit.app.R
 import dev.gpxit.app.data.RouteStorage
 import dev.gpxit.app.data.gpx.GpxParser
 import dev.gpxit.app.data.gpx.findClosestPointIndex
@@ -33,6 +35,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +63,7 @@ class TripTrackingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.i(TAG, "onStartCommand: action=${intent?.action} startId=$startId")
         when (intent?.action) {
             ACTION_STOP -> {
                 stopTracking()
@@ -72,14 +76,48 @@ class TripTrackingService : Service() {
     }
 
     private fun startTracking() {
-        if (locationJob?.isActive == true) return
-        createChannel()
-        startInForeground(buildNotification(null, null))
+        Log.i(TAG, "startTracking: enter")
+        if (locationJob?.isActive == true) {
+            Log.i(TAG, "startTracking: already active, ignoring")
+            return
+        }
+        try {
+            createChannel()
+            Log.i(TAG, "startTracking: channel ok")
+        } catch (t: Throwable) {
+            Log.e(TAG, "createChannel failed", t)
+            stopSelf()
+            return
+        }
+        val notif = try {
+            buildNotification(null, null)
+        } catch (t: Throwable) {
+            Log.e(TAG, "buildNotification failed", t)
+            stopSelf()
+            return
+        }
+        Log.i(TAG, "startTracking: notification built")
+        try {
+            startInForeground(notif)
+            Log.i(TAG, "startTracking: startForeground returned")
+        } catch (t: Throwable) {
+            // startForeground throws SecurityException on API 34+ when
+            // location permission isn't granted at call-time, or
+            // ForegroundServiceStartNotAllowedException when the
+            // system decides the start wasn't backed by a visible
+            // app state. Log the real cause so we can see the stack
+            // instead of letting the service die silently with only a
+            // "Cannot find enqueued record" from NotificationService.
+            Log.e(TAG, "startForeground failed", t)
+            stopSelf()
+            return
+        }
         _state.value = TripState(
             isActive = true,
             snapshot = null,
             homeRecommendation = activeHomeRecommendation()
         )
+        Log.i(TAG, "startTracking: state=active")
 
         locationJob = scope.launch {
             // Load persisted route + avg speed off the main thread.
@@ -106,9 +144,15 @@ class TripTrackingService : Service() {
 
         // Mirror the home-recommendation flow so the notification picks
         // up "Take me home" results without waiting for the next GPS fix.
+        // drop(1) skips the StateFlow's initial replay — firing
+        // updateNotification immediately after startForeground races
+        // with the system's FGS notification post on Android 15 and
+        // can cause the first post to silently fail ("Cannot find
+        // enqueued record for key: 42"). We only want to react to
+        // real changes published by GpxitApp anyway.
         recJob?.cancel()
         recJob = scope.launch {
-            _homeRecommendation.collect { rec ->
+            _homeRecommendation.drop(1).collect { rec ->
                 _state.value = _state.value.copy(homeRecommendation = rec)
                 updateNotification(currentSnapshot, rec)
             }
@@ -131,6 +175,7 @@ class TripTrackingService : Service() {
     }
 
     private fun stopTracking() {
+        Log.i(TAG, "stopTracking: enter (wasActive=${_state.value.isActive})")
         locationJob?.cancel()
         locationJob = null
         recJob?.cancel()
@@ -160,14 +205,6 @@ class TripTrackingService : Service() {
         snap: TripSnapshot?,
         rec: HomeRecommendation?
     ): Notification {
-        val stopIntent = Intent(this, TripTrackingService::class.java).apply {
-            action = ACTION_STOP
-        }
-        val stopPending = PendingIntent.getService(
-            this, 0, stopIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -178,32 +215,24 @@ class TripTrackingService : Service() {
 
         val title = snap?.routeName?.takeIf { it.isNotBlank() } ?: "Trip tracking"
         val primary = snapshotLine(snap, rec)
-        val home = homeLine(rec)
-        // Primary line already names the station and cycling ETA, so it
-        // is the single most useful glance — keep it as the collapsed
-        // view. Expanded (BigTextStyle) adds the train details so both
-        // pieces are visible when the user pulls the notification down.
+        @Suppress("UNUSED_VARIABLE")
+        val home = homeLine(rec) // reserved for future BigTextStyle; kept so logic stays intact
         val contentText = primary
-        val bigText = if (home != null) "$primary\n$home" else primary
 
+        // Keep this notification as minimal as possible for maximum
+        // compatibility with Android 15+ foreground-service notification
+        // validation — earlier iterations silently failed at post-time
+        // with bigger, fancier builders. If we need richer UI later
+        // (Stop action button, BigTextStyle, NAVIGATION category), add
+        // it back only after confirming the bare-bones form posts.
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.ic_tracking_notification)
             .setContentTitle(title)
             .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(openPending)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPending)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
-            // Pre-Oreo fallback — matches the channel DEFAULT importance
-            // so older devices also show the notification prominently.
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            // Show full content on the lock screen so the rider can
-            // glance at progress / next train without unlocking. The
-            // channel's lockscreenVisibility also has to be PUBLIC for
-            // this flag to take effect on API 26+ — see createChannel().
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
     }
 
@@ -262,7 +291,6 @@ class TripTrackingService : Service() {
     }
 
     private fun updateNotification(snap: TripSnapshot?, rec: HomeRecommendation?) {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // Gate on notification permission — on API 33+ the app needs it and
         // the user may have denied; without it, notify() silently no-ops.
         val canPost = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -270,7 +298,20 @@ class TripTrackingService : Service() {
                 this, Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         if (!canPost) return
-        nm.notify(NOTIFICATION_ID, buildNotification(snap, rec))
+        // Update the existing FGS notification via startForeground
+        // rather than NotificationManager.notify(). On Android 15 the
+        // two paths are NOT equivalent — notify() for an ID that was
+        // started as a foreground-service notification can lose the
+        // FLAG_FOREGROUND_SERVICE association, triggering validation
+        // rejection and the "Cannot find enqueued record" log. The
+        // startForeground() path keeps the notification flagged as
+        // part of the live FGS, which is what this entire service
+        // wants anyway.
+        try {
+            startInForeground(buildNotification(snap, rec))
+        } catch (t: Throwable) {
+            Log.w(TAG, "updateNotification failed", t)
+        }
     }
 
     private fun createChannel() {
@@ -290,9 +331,13 @@ class TripTrackingService : Service() {
             enableVibration(false)
             // DEFAULT importance normally makes a sound on first post.
             // We want prominent display but silent — explicitly null
-            // the sound and vibration.
+            // the sound so first-post doesn't chime. Do NOT set
+            // vibrationPattern here: Android 15+ rejects a [0]-length
+            // pattern inside NotificationVibratorHelper, which takes
+            // down the whole service during startForeground. Since
+            // enableVibration(false) already kills vibration, leaving
+            // the pattern unset is both correct and safe.
             setSound(null, null)
-            vibrationPattern = longArrayOf(0L)
             // Show the full contents on the lock screen — matches the
             // per-notification VISIBILITY_PUBLIC. On API 26+ the
             // channel's setting is the upper bound, so without this
@@ -303,19 +348,24 @@ class TripTrackingService : Service() {
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "onDestroy")
         stopTracking()
         scope.cancel()
         super.onDestroy()
     }
 
     companion object {
+        private const val TAG = "TripTrackingService"
         const val ACTION_START = "dev.gpxit.app.tracking.ACTION_START"
         const val ACTION_STOP = "dev.gpxit.app.tracking.ACTION_STOP"
-        // v2 forces a fresh channel with DEFAULT importance — existing
-        // channel importance can't be raised by the app after creation,
-        // and the old "trip_tracking" was IMPORTANCE_LOW which lands in
-        // the "Silent" shade group on Android 13+.
-        const val CHANNEL_ID = "trip_tracking_v2"
+        // v3 forces a fresh channel after the v2 channel was created
+        // with a [0]-length vibrationPattern that Android 15+ rejects
+        // at notify-time. Channel configuration is immutable after
+        // creation, so existing v2 installs have to land on a new
+        // channel to escape the bad pattern. v2 -> IMPORTANCE_DEFAULT,
+        // same as v3; the only reason we're bumping is the vibration
+        // pattern cleanup.
+        const val CHANNEL_ID = "trip_tracking_v3"
         const val NOTIFICATION_ID = 42
 
         private val _state = MutableStateFlow(TripState())

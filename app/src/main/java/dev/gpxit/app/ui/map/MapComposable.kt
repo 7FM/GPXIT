@@ -30,11 +30,58 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polyline
-import org.osmdroid.views.overlay.ScaleBarOverlay
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 
 enum class MapCommand {
     NONE, ZOOM_TO_ROUTE, ZOOM_TO_LOCATION, ZOOM_TO_STATION, RESET_ROTATION, GET_MAP_CENTER, ZOOM_IN, ZOOM_OUT
+}
+
+/**
+ * Pre-expand a geographic bounding box so that fitting it to the full
+ * MapView viewport (via osmdroid's uniform-border zoomToBoundingBox)
+ * places the ORIGINAL content inside the "clear" area defined by
+ * [insets]. Each inset in pixels is converted into extra degrees of
+ * lat / lon padding on the corresponding side of the box, so the map
+ * ends up with e.g. the peek sheet covering only empty padding
+ * beneath the last station. Works for both the fullscreen route fit
+ * and the Take-me-home carousel auto-fit.
+ */
+private fun extendBboxForInsets(
+    bb: org.osmdroid.util.BoundingBox,
+    mapHeight: Int,
+    mapWidth: Int,
+    insets: dev.gpxit.app.ui.map.FitInsets,
+): org.osmdroid.util.BoundingBox {
+    val h = mapHeight.coerceAtLeast(1)
+    val w = mapWidth.coerceAtLeast(1)
+    val topPx = insets.topPx.coerceIn(0, h - 1)
+    val botPx = insets.bottomPx.coerceIn(0, h - 1 - topPx)
+    val leftPx = insets.leftPx.coerceIn(0, w - 1)
+    val rightPx = insets.rightPx.coerceIn(0, w - 1 - leftPx)
+
+    val clearH = (h - topPx - botPx).coerceAtLeast(1)
+    val clearW = (w - leftPx - rightPx).coerceAtLeast(1)
+
+    // Per-axis expansion: extra span such that clear = original /
+    // (total span / ratio). `ratio` is >= 1 when any inset is set.
+    val latRatio = h.toDouble() / clearH.toDouble()
+    val lonRatio = w.toDouble() / clearW.toDouble()
+    val latExtra = bb.latitudeSpan * (latRatio - 1.0)
+    val lonExtra = bb.longitudeSpan * (lonRatio - 1.0)
+
+    val latTotalInset = (topPx + botPx).coerceAtLeast(1)
+    val lonTotalInset = (leftPx + rightPx).coerceAtLeast(1)
+    val topExtra = latExtra * topPx / latTotalInset
+    val botExtra = latExtra * botPx / latTotalInset
+    val leftExtra = lonExtra * leftPx / lonTotalInset
+    val rightExtra = lonExtra * rightPx / lonTotalInset
+
+    return org.osmdroid.util.BoundingBox(
+        bb.latNorth + topExtra,
+        bb.lonEast + rightExtra,
+        bb.latSouth - botExtra,
+        bb.lonWest - leftExtra,
+    )
 }
 
 private val labelTimeFormatter = java.time.format.DateTimeFormatter
@@ -88,22 +135,28 @@ private fun createPreviewDotBitmap(): Bitmap {
  * runtime via Marker.rotation (with isFlat = true, so the rotation
  * is applied in map coordinates regardless of gestural map rotation).
  */
-private fun createBlueDotBitmap(): Bitmap {
-    val size = 72
+/**
+ * Blue navigation chevron for the user's location. [filled] = true
+ * draws the solid-blue "locked" chevron; [filled] = false draws a
+ * ring-only "searching" chevron to mimic how Google / Apple Maps
+ * indicate a missing or stale GPS fix.
+ */
+private fun createBlueDotBitmap(filled: Boolean = true): Bitmap {
+    val size = 108
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val cx = size / 2f
 
-    // Chevron geometry, bitmap-center at (cx, 36):
-    //   tip ........................ (cx, 4)
-    //   right wing .................. (cx + 20, 60)
-    //   center notch ................ (cx, 46)  // concave bottom
-    //   left wing ................... (cx - 20, 60)
+    // Chevron geometry, bitmap-center at (cx, 54):
+    //   tip ........................ (cx, 6)
+    //   right wing .................. (cx + 30, 90)
+    //   center notch ................ (cx, 69)  // concave bottom
+    //   left wing ................... (cx - 30, 90)
     val chevron = android.graphics.Path().apply {
-        moveTo(cx, 4f)
-        lineTo(cx + 20f, 60f)
-        lineTo(cx, 46f)
-        lineTo(cx - 20f, 60f)
+        moveTo(cx, 6f)
+        lineTo(cx + 30f, 90f)
+        lineTo(cx, 69f)
+        lineTo(cx - 30f, 90f)
         close()
     }
 
@@ -112,28 +165,49 @@ private fun createBlueDotBitmap(): Bitmap {
         color = Color.argb(90, 0, 0, 0)
         style = Paint.Style.FILL
         maskFilter = android.graphics.BlurMaskFilter(
-            3f, android.graphics.BlurMaskFilter.Blur.NORMAL
+            4f, android.graphics.BlurMaskFilter.Blur.NORMAL
         )
     }
     canvas.save()
-    canvas.translate(0f, 2f)
+    canvas.translate(0f, 3f)
     canvas.drawPath(chevron, shadowPaint)
     canvas.restore()
 
-    // White outline (stroke on top of fill)
-    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(66, 133, 244)
-        style = Paint.Style.FILL
+    if (filled) {
+        // "GPS locked" — solid blue body with a thin white outline
+        // ring around it.
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(66, 133, 244)
+            style = Paint.Style.FILL
+        }
+        canvas.drawPath(chevron, fillPaint)
+        val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawPath(chevron, outlinePaint)
+    } else {
+        // "Searching / no fix" — WHITE-filled chevron with a blue
+        // outline. Same silhouette as the locked state so the marker
+        // doesn't jump when a fix is acquired, but unmistakably not
+        // filled-blue (matching Google / Apple Maps convention).
+        val whiteFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+        canvas.drawPath(chevron, whiteFill)
+        val bluePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(66, 133, 244)
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawPath(chevron, bluePaint)
     }
-    canvas.drawPath(chevron, fillPaint)
-    val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        style = Paint.Style.STROKE
-        strokeWidth = 3f
-        strokeJoin = Paint.Join.ROUND
-        strokeCap = Paint.Cap.ROUND
-    }
-    canvas.drawPath(chevron, outlinePaint)
 
     return bmp
 }
@@ -210,12 +284,13 @@ private fun createLabeledStationBitmap(
     lineBottom: String?,
     highlighted: Boolean,
     recommended: Boolean,
-    destination: Boolean = false
+    destination: Boolean = false,
+    peekSlotIndex: Int? = null,
 ): Bitmap {
-    val pinBmp = if (destination) {
-        createDestinationMarkerBitmap()
-    } else {
-        createStationMarkerBitmap(highlighted)
+    val pinBmp = when {
+        destination -> createDestinationMarkerBitmap()
+        peekSlotIndex != null -> createPeekHighlightedMarkerBitmap(peekSlotIndex)
+        else -> createStationMarkerBitmap(highlighted)
     }
 
     val textSizePx = 22f
@@ -432,6 +507,65 @@ private fun createStationMarkerBitmap(highlighted: Boolean): Bitmap {
     return bmp
 }
 
+/**
+ * Green pin used for a station that's currently visible in the
+ * Take-me-home peek carousel. Instead of the default "T" glyph, it
+ * carries the station's 1-based index within the page (1, 2, 3) so
+ * the user can trace each marker back to the matching card in the
+ * peek sheet. Visually distinct from both the default orange pin
+ * and the tap-highlighted orange pin.
+ */
+private fun createPeekHighlightedMarkerBitmap(index: Int): Bitmap {
+    val width = 72
+    val height = 92
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val cx = width / 2f
+    val circleR = 28f
+    val circleY = circleR + 4f
+
+    // Shadow
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(60, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, circleY + 2f, circleR + 2f, shadowPaint)
+
+    // White border ring
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, circleY, circleR + 4f, borderPaint)
+
+    // Accent green fill (matches MapPalette.accent sRGB ≈ #2FA04A).
+    val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(47, 160, 74)
+        style = Paint.Style.FILL
+    }
+    canvas.drawCircle(cx, circleY, circleR, pinPaint)
+    val path = android.graphics.Path().apply {
+        moveTo(cx - 16f, circleY + circleR - 6f)
+        lineTo(cx + 16f, circleY + circleR - 6f)
+        lineTo(cx, height.toFloat() - 2f)
+        close()
+    }
+    canvas.drawPath(path, pinPaint)
+
+    // White index digit. Shrink the font a touch for two-digit
+    // indices so "12" / "13" still clear the circle's inner space.
+    val label = index.toString()
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = if (label.length >= 2) 24f else 32f
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    canvas.drawText(label, cx, circleY + 11f, textPaint)
+
+    return bmp
+}
+
 private fun createNearbyMarkerBitmap(): Bitmap {
     val width = 56
     val height = 72
@@ -547,6 +681,11 @@ private fun createDestinationMarkerBitmap(): Bitmap {
 fun OsmMapView(
     routeInfo: RouteInfo?,
     userLocation: GeoPoint?,
+    userAccuracyMeters: Float? = null,
+    fitStationsRequest: dev.gpxit.app.ui.map.FitStationsRequest? = null,
+    onFitStationsConsumed: () -> Unit = {},
+    fitRouteInsets: dev.gpxit.app.ui.map.FitInsets? = null,
+    peekHighlightedStationIds: Map<String, Int> = emptyMap(),
     homeStationLocation: GeoPoint?,
     highlightedStation: StationCandidate?,
     destinationStation: StationCandidate? = null,
@@ -562,6 +701,7 @@ fun OsmMapView(
     previewPosition: GeoPoint? = null,
     stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
     pois: List<dev.gpxit.app.domain.Poi> = emptyList(),
+    showStations: Boolean = true,
     mapCommand: MapCommand,
     onMapCommandHandled: () -> Unit,
     zoomToStation: StationCandidate? = null,
@@ -569,6 +709,7 @@ fun OsmMapView(
     onStationClick: (StationCandidate) -> Unit,
     onMapRotationChanged: (Float) -> Unit,
     onZoomLevelChanged: (Double) -> Unit = {},
+    onMetersPerPixelChanged: (Double) -> Unit = {},
     onViewportChanged: (north: Double, south: Double, east: Double, west: Double) -> Unit = { _, _, _, _ -> },
     onMapViewportSnapshot: ((center: GeoPoint, zoom: Double) -> Unit)? = null,
     onGetMapCenter: ((center: GeoPoint, radiusMeters: Int) -> Unit)? = null,
@@ -594,11 +735,22 @@ fun OsmMapView(
         onDispose { }
     }
 
-    val blueDotBitmap = remember { createBlueDotBitmap() }
+    val blueDotBitmap = remember { createBlueDotBitmap(filled = true) }
+    // Ring-only variant for when we don't yet have a real GPS lock
+    // (e.g. just opened the app, or the location provider is emitting
+    // without `hasAccuracy()`). Matches the Google/Apple convention
+    // of a hollow pip while searching.
+    val blueDotSearchingBitmap = remember { createBlueDotBitmap(filled = false) }
     val previewDotBitmap = remember { createPreviewDotBitmap() }
     val homeMarkerBitmap = remember { createHomeMarkerBitmap() }
     val stationMarkerBitmap = remember { createStationMarkerBitmap(false) }
     val highlightedMarkerBitmap = remember { createStationMarkerBitmap(true) }
+    // Lazily-populated cache of the green peek-highlight pin keyed by
+    // the station's 1-based index in the full Take-me-home list. The
+    // carousel can show indices 1..N where N is `maxStationsToCheck`,
+    // so rasterising eagerly would be wasteful; the first tap on a
+    // given index fills the cache and subsequent fetches are free.
+    val peekHighlightedMarkerCache = remember { mutableMapOf<Int, Bitmap>() }
     val destinationMarkerBitmap = remember { createDestinationMarkerBitmap() }
     val nearbyMarkerBitmap = remember { createNearbyMarkerBitmap() }
     val poiGroceryBmp = remember { createPoiBitmap(dev.gpxit.app.domain.PoiType.GROCERY) }
@@ -628,29 +780,12 @@ fun OsmMapView(
             val rotationOverlay = RotationGestureOverlay(this)
             overlays.add(rotationOverlay)
 
-            // Scale bar overlay — middle of the left side
-            val dm = context.resources.displayMetrics
-            val scaleBarOverlay = ScaleBarOverlay(this).apply {
-                setCentred(false)
-                drawLatitudeScale(false)
-                drawLongitudeScale(true)
-                setAlignBottom(false)
-                setAlignRight(false)
-                setScaleBarOffset((12 * dm.density).toInt(), dm.heightPixels / 2)
-                setTextSize(12f * dm.density)
-                setBarPaint(android.graphics.Paint().apply {
-                    color = android.graphics.Color.DKGRAY
-                    isAntiAlias = true
-                    style = android.graphics.Paint.Style.STROKE
-                    strokeWidth = 2f * dm.density
-                })
-                setTextPaint(android.graphics.Paint().apply {
-                    color = android.graphics.Color.DKGRAY
-                    isAntiAlias = true
-                    textSize = 12f * dm.density
-                })
-            }
-            overlays.add(scaleBarOverlay)
+            // Scale bar is now rendered as a Compose composable in
+            // MapScreen (see `ScaleLegend`), driven by
+            // `onMetersPerPixelChanged`. Keeping it out of osmdroid's
+            // overlay stack means positioning follows normal Compose
+            // layout rules — `Alignment.CenterStart` is exact — and
+            // avoids the opaque internal offsets of ScaleBarOverlay.
         }
     }
 
@@ -672,6 +807,18 @@ fun OsmMapView(
         while (true) {
             onMapRotationChanged(mapView.mapOrientation)
             onZoomLevelChanged(mapView.zoomLevelDouble)
+            // Meters-per-pixel at the map's current centre — feeds
+            // the Compose-drawn scale bar. Derived from the viewport
+            // height in degrees × 111320 m / degree (latitudinal
+            // metres-per-degree is roughly constant on a WGS84
+            // sphere, so this holds for any centre latitude).
+            val mapH = mapView.height
+            if (mapH > 0) {
+                val latSpan = mapView.boundingBox.latitudeSpan
+                if (latSpan > 0.0) {
+                    onMetersPerPixelChanged(latSpan * 111_320.0 / mapH)
+                }
+            }
             val bb = mapView.boundingBox
             val n = bb.latNorth; val s = bb.latSouth; val e = bb.lonEast; val w = bb.lonWest
             if (n != lastN || s != lastS || e != lastE || w != lastW) {
@@ -741,7 +888,18 @@ fun OsmMapView(
                         val lats = route.points.map { it.lat }
                         val lons = route.points.map { it.lon }
                         val bb = BoundingBox(lats.max(), lons.max(), lats.min(), lons.min())
-                        mapView.zoomToBoundingBox(bb, true, 80)
+                        val insets = fitRouteInsets
+                        if (insets != null) {
+                            val extended = extendBboxForInsets(
+                                bb = bb,
+                                mapHeight = mapView.height,
+                                mapWidth = mapView.width,
+                                insets = insets,
+                            )
+                            mapView.zoomToBoundingBox(extended, true, 40)
+                        } else {
+                            mapView.zoomToBoundingBox(bb, true, 80)
+                        }
                     }
                 }
                 onMapCommandHandled()
@@ -795,6 +953,37 @@ fun OsmMapView(
         }
     }
 
+    // Fit a small set of stations into the clear area defined by
+    // FitInsets (top: stats strip, right: zoom rail, bottom: peek
+    // sheet + nav, left: compass). osmdroid's zoomToBoundingBox uses
+    // a uniform border, so we pre-extend the bbox asymmetrically.
+    LaunchedEffect(fitStationsRequest?.nonce) {
+        val req = fitStationsRequest ?: return@LaunchedEffect
+        if (req.stations.isEmpty()) {
+            onFitStationsConsumed()
+            return@LaunchedEffect
+        }
+        // Wait one frame so the map view has a measured size we can
+        // use for the ratio calculation; cold-open the map could
+        // have width/height = 0 if we fired right after composition.
+        kotlinx.coroutines.delay(100)
+        val bb = org.osmdroid.util.BoundingBox.fromGeoPoints(
+            req.stations.map { GeoPoint(it.lat, it.lon) }
+        )
+        val extended = extendBboxForInsets(
+            bb = bb,
+            mapHeight = mapView.height,
+            mapWidth = mapView.width,
+            insets = req.insets,
+        )
+        // Cap max zoom so a single-station (degenerate) bbox doesn't
+        // slam the camera to the tile-source max. 17 is block-level,
+        // close enough to pick out the station building without
+        // losing the user's surrounding context.
+        mapView.zoomToBoundingBox(extended, true, 40, 17.0, 1000L)
+        onFitStationsConsumed()
+    }
+
     AndroidView(
         factory = { mapView },
         modifier = modifier,
@@ -815,14 +1004,29 @@ fun OsmMapView(
                 map.overlays.add(polyline)
                 contentOverlays.add(polyline)
 
-                // Initial zoom to route (once only)
+                // Initial zoom to route (once only). Use the SAME
+                // 4-sided inset expansion as the Fullscreen-fit button
+                // so the route doesn't spawn half-hidden under the
+                // stats strip or the right rail the moment the user
+                // arrives on the map.
                 if (!hasInitialZoom["done"]!!) {
                     hasInitialZoom["done"] = true
                     val lats = routeInfo.points.map { it.lat }
                     val lons = routeInfo.points.map { it.lon }
                     val bb = BoundingBox(lats.max(), lons.max(), lats.min(), lons.min())
+                    val insets = fitRouteInsets
                     map.post {
-                        map.zoomToBoundingBox(bb, true, 80)
+                        if (insets != null) {
+                            val extended = extendBboxForInsets(
+                                bb = bb,
+                                mapHeight = map.height,
+                                mapWidth = map.width,
+                                insets = insets,
+                            )
+                            map.zoomToBoundingBox(extended, true, 40)
+                        } else {
+                            map.zoomToBoundingBox(bb, true, 80)
+                        }
                     }
                 }
 
@@ -923,10 +1127,15 @@ fun OsmMapView(
                     contentOverlays.add(navPolyline)
                 }
 
-                // Station markers
-                for (station in routeInfo.stations) {
+                // Station markers (toggleable via the Layers sheet's
+                // "Exit points" switch — the route's own station set
+                // is hidden entirely when showStations is false; the
+                // nearby-search results below ignore this flag since
+                // those are the user's own search).
+                if (showStations) for (station in routeInfo.stations) {
                     val isHighlighted = highlightedStation?.id == station.id
                     val isDestination = destinationStation?.id == station.id
+                    val peekSlotIndex = peekHighlightedStationIds[station.id]
                     val label = stationLabels[station.id]
                     val arr = label?.arrivalAtStation?.let { labelTimeFormatter.format(it) }
                     val dep = label?.nextTrainDeparture?.let { labelTimeFormatter.format(it) }
@@ -945,6 +1154,23 @@ fun OsmMapView(
                             destination = true
                         )
                         isDestination -> destinationMarkerBitmap
+                        // Peek-highlighted + label → green indexed pin
+                        // WITH the arr/dep pill on top so the user
+                        // still sees the next-connection info; without
+                        // this branch the peek markers lost their
+                        // labels the moment they went "green".
+                        peekSlotIndex != null && hasLabelText ->
+                            createLabeledStationBitmap(
+                                lineTop = lineTop.ifBlank { lineBottom ?: "" },
+                                lineBottom = if (lineTop.isBlank()) null else lineBottom,
+                                highlighted = false,
+                                recommended = label?.isRecommended == true,
+                                peekSlotIndex = peekSlotIndex,
+                            )
+                        peekSlotIndex != null -> peekHighlightedMarkerCache
+                            .getOrPut(peekSlotIndex) {
+                                createPeekHighlightedMarkerBitmap(peekSlotIndex)
+                            }
                         hasLabelText -> createLabeledStationBitmap(
                             lineTop = lineTop.ifBlank { lineBottom ?: "" },
                             lineBottom = if (lineTop.isBlank()) null else lineBottom,
@@ -1036,10 +1262,35 @@ fun OsmMapView(
             // so the arrow points to the user's real-world heading
             // regardless of how the map itself is rotated.
             if (userLocation != null) {
+                // Has-lock heuristic: ANY accuracy reading (finite,
+                // may be 0) counts as a real fix. The ring is drawn
+                // only when accuracy is strictly positive so we don't
+                // render a zero-radius polygon. Missing / stale
+                // accuracy (cleared by GpxitApp's staleness watcher)
+                // gates the hollow "searching" chevron.
+                val acc = userAccuracyMeters
+                val hasLock = acc != null && acc.isFinite()
+                val showAccuracyRing = hasLock && acc!! > 0f
+                if (showAccuracyRing) {
+                    val accuracyCircle = org.osmdroid.views.overlay.Polygon(map).apply {
+                        points = org.osmdroid.views.overlay.Polygon
+                            .pointsAsCircle(userLocation, acc.toDouble())
+                        fillPaint.color = android.graphics.Color.argb(40, 66, 133, 244)
+                        outlinePaint.color = android.graphics.Color.argb(160, 66, 133, 244)
+                        outlinePaint.strokeWidth = 2f * context.resources.displayMetrics.density
+                        setOnClickListener { _, _, _ -> false } // don't eat taps
+                    }
+                    map.overlays.add(accuracyCircle)
+                    contentOverlays.add(accuracyCircle)
+                }
+
                 val userMarker = Marker(map).apply {
                     position = userLocation
                     title = "You are here"
-                    icon = BitmapDrawable(context.resources, blueDotBitmap)
+                    icon = BitmapDrawable(
+                        context.resources,
+                        if (hasLock) blueDotBitmap else blueDotSearchingBitmap,
+                    )
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     isFlat = true
                     rotation = deviceHeading
