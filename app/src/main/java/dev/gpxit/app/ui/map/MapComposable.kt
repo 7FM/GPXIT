@@ -6,16 +6,14 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
+import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,7 +31,7 @@ import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 
 enum class MapCommand {
-    NONE, ZOOM_TO_ROUTE, ZOOM_TO_LOCATION, ZOOM_TO_STATION, RESET_ROTATION, GET_MAP_CENTER, ZOOM_IN, ZOOM_OUT
+    NONE, ZOOM_TO_ROUTE, ZOOM_TO_STATION, RESET_ROTATION, GET_MAP_CENTER, ZOOM_IN, ZOOM_OUT
 }
 
 /**
@@ -720,6 +718,22 @@ fun OsmMapView(
      */
     initialMapCenter: GeoPoint? = null,
     initialMapZoom: Double? = null,
+    /**
+     * Three-state location-tracking driven by the locate FAB. When
+     * non-Off, the map auto-centres on [userLocation]; in
+     * [LocateMode.Compass] the map also rotates so the device
+     * heading is up. Manual one-finger pans inside the map demote
+     * the mode to [LocateMode.Off] via [onLocateModeChanged].
+     */
+    locateMode: LocateMode = LocateMode.Off,
+    onLocateModeChanged: (LocateMode) -> Unit = {},
+    /**
+     * Device azimuth in degrees clockwise from north. Hoisted into
+     * MapScreen so the same sensor reading drives the locate FAB
+     * icon, the user-marker rotation, and the heading-up Compass
+     * mode without registering three listeners.
+     */
+    deviceHeading: Float = 0f,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -840,45 +854,6 @@ fun OsmMapView(
     // initial zoom — don't fight the user by re-zooming to route extent.
     val hasInitialZoom = remember { mutableMapOf("done" to (initialMapCenter != null)) }
 
-    // Compass heading in degrees (clockwise from true north). Default
-    // 0 = north. Updated from the rotation-vector sensor below.
-    var deviceHeading by remember { mutableFloatStateOf(0f) }
-
-    // Rotation-vector sensor → azimuth. Sampled at UI rate, but we
-    // only bump the state when the heading changes by more than a
-    // couple of degrees to avoid flooding recomposition.
-    DisposableEffect(Unit) {
-        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
-        val rotationSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        if (sensorManager == null || rotationSensor == null) {
-            onDispose {}
-        } else {
-            val rotationMatrix = FloatArray(9)
-            val orientation = FloatArray(3)
-            var lastReported = Float.NaN
-            val listener = object : SensorEventListener {
-                override fun onSensorChanged(event: SensorEvent) {
-                    if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
-                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                    SensorManager.getOrientation(rotationMatrix, orientation)
-                    val azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
-                        .let { if (it < 0) it + 360f else it }
-                    if (lastReported.isNaN() ||
-                        kotlin.math.abs(((azimuth - lastReported + 540f) % 360f) - 180f) > 2f
-                    ) {
-                        lastReported = azimuth
-                        deviceHeading = azimuth
-                    }
-                }
-                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-            }
-            sensorManager.registerListener(
-                listener, rotationSensor, SensorManager.SENSOR_DELAY_UI
-            )
-            onDispose { sensorManager.unregisterListener(listener) }
-        }
-    }
-
     // Handle map commands
     LaunchedEffect(mapCommand) {
         when (mapCommand) {
@@ -901,12 +876,6 @@ fun OsmMapView(
                             mapView.zoomToBoundingBox(bb, true, 80)
                         }
                     }
-                }
-                onMapCommandHandled()
-            }
-            MapCommand.ZOOM_TO_LOCATION -> {
-                userLocation?.let {
-                    mapView.controller.animateTo(it, 15.0, 500L)
                 }
                 onMapCommandHandled()
             }
@@ -951,6 +920,129 @@ fun OsmMapView(
             mapView.controller.animateTo(GeoPoint(zoomToStation.lat, zoomToStation.lon), 15.0, 800L)
             onZoomToStationConsumed()
         }
+    }
+
+    // Location-tracking mode (locate FAB). Three coupled effects:
+    //
+    //  1) `locateMode` transitions: animate-to on entry to Following
+    //     or Compass so the recentre reads as a deliberate camera
+    //     move; bump zoom to ≥16 if the user was zoomed way out.
+    //  2) New `userLocation` while in a follow mode: snap-centre so
+    //     the marker stays under the cursor as GPS streams in.
+    //  3) New `deviceHeading` while in Compass: rotate the map so
+    //     the heading is up. osmdroid's setMapOrientation rotates
+    //     the viewport (not the world), so the bearing-up mapping
+    //     is mapOrientation = -deviceHeading. The sensor listener
+    //     already throttles to ~2° so we don't redraw per frame.
+    //  4) Manual one-finger pan: the touch listener below demotes
+    //     the mode to Off so the map stops fighting the user.
+    val currentLocateMode by rememberUpdatedState(locateMode)
+    val currentOnLocateModeChanged by rememberUpdatedState(onLocateModeChanged)
+    LaunchedEffect(locateMode) {
+        if (locateMode == LocateMode.Off) return@LaunchedEffect
+        userLocation?.let {
+            val targetZoom = maxOf(mapView.zoomLevelDouble, 16.0)
+            mapView.controller.animateTo(it, targetZoom, 500L)
+        }
+        if (locateMode == LocateMode.Compass) {
+            mapView.setMapOrientation(-deviceHeading, true)
+        }
+    }
+    LaunchedEffect(userLocation) {
+        if (locateMode != LocateMode.Off) {
+            userLocation?.let { mapView.controller.setCenter(it) }
+        }
+    }
+    LaunchedEffect(deviceHeading) {
+        if (locateMode == LocateMode.Compass) {
+            mapView.setMapOrientation(-deviceHeading, false)
+        }
+    }
+    DisposableEffect(mapView) {
+        // User-gesture detector that drops the locate mode back to
+        // Off on any pan or rotate the user performs themselves. We
+        // intentionally don't compare mapView.mapOrientation against
+        // a snapshot — the heading-up Compass effect mutates that
+        // value on every sensor tick, so it can't tell user input
+        // from our own writes. Instead we look at the raw pointer
+        // geometry:
+        //   • single finger past the slop          → pan
+        //   • two fingers whose enclosed angle has
+        //     drifted past a few degrees           → twist/rotate
+        // Pinch-zoom (two fingers, mostly radial motion) is
+        // tolerated so the user can zoom while staying centred.
+        // Returning false from the listener delegates to
+        // MapView.onTouchEvent so osmdroid's own gesture handling
+        // (pan, pinch, rotate) keeps working.
+        var downX = 0f
+        var downY = 0f
+        var dragArmed = false
+        var twoFingerStartAngle = Float.NaN
+        val slopSq = 30f * 30f
+        val rotateSlopDeg = 6f
+
+        fun pairAngle(event: MotionEvent): Float {
+            val dx = event.getX(1) - event.getX(0)
+            val dy = event.getY(1) - event.getY(0)
+            return Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        }
+        fun deactivate() {
+            if (currentLocateMode != LocateMode.Off) {
+                currentOnLocateModeChanged(LocateMode.Off)
+            }
+        }
+
+        mapView.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    dragArmed = true
+                    twoFingerStartAngle = Float.NaN
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    // Second finger landed — pan-arm clears (two
+                    // fingers down isn't a pan), and we snapshot
+                    // the inter-pointer angle so subsequent MOVEs
+                    // can detect a twist.
+                    dragArmed = false
+                    if (event.pointerCount >= 2) {
+                        twoFingerStartAngle = pairAngle(event)
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (dragArmed && event.pointerCount == 1) {
+                        val dx = event.x - downX
+                        val dy = event.y - downY
+                        if (dx * dx + dy * dy > slopSq) {
+                            dragArmed = false
+                            deactivate()
+                        }
+                    } else if (event.pointerCount >= 2 && !twoFingerStartAngle.isNaN()) {
+                        val now = pairAngle(event)
+                        val delta = kotlin.math.abs(
+                            ((now - twoFingerStartAngle + 540f) % 360f) - 180f
+                        )
+                        if (delta > rotateSlopDeg) {
+                            twoFingerStartAngle = Float.NaN
+                            deactivate()
+                        }
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    // Second finger lifted — clear the rotation
+                    // baseline so a leftover one-finger pan doesn't
+                    // start mid-stream.
+                    twoFingerStartAngle = Float.NaN
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    dragArmed = false
+                    twoFingerStartAngle = Float.NaN
+                }
+            }
+            false
+        }
+        onDispose { mapView.setOnTouchListener(null) }
     }
 
     // Fit a small set of stations into the clear area defined by
@@ -1293,7 +1385,11 @@ fun OsmMapView(
                     )
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                     isFlat = true
-                    rotation = deviceHeading
+                    // osmdroid's Marker.draw applies `canvas.rotate(-bearing)`,
+                    // so positive `rotation` spins the icon counter-clockwise.
+                    // The chevron tip points up by default; we want it to point
+                    // toward the device heading (CW from north), so negate.
+                    rotation = -deviceHeading
                 }
                 map.overlays.add(userMarker)
                 contentOverlays.add(userMarker)

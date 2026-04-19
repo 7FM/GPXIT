@@ -171,6 +171,16 @@ fun MapScreen(
     var peek by remember { mutableStateOf(MapPeek.None) }
     var fullscreenTimeline by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
+    // Three-state location-tracking toggle driven by the bottom-right
+    // FAB. Off → Following → Compass → Off; manual map pans inside
+    // OsmMapView reset this back to Off (the locate-button icon
+    // updates accordingly).
+    var locateMode by remember { mutableStateOf(LocateMode.Off) }
+    // Hoisted device azimuth (TYPE_ROTATION_VECTOR). Shared between
+    // the locate FAB (rotates the chevron in Following) and the map
+    // (rotates the user marker + drives heading-up in Compass) so
+    // we only register one sensor listener for the screen.
+    val deviceHeading by rememberDeviceHeading()
     // Show / hide route station markers (the Layers sheet's "Exit
     // points" toggle). Ephemeral session state — defaults to visible.
     var showStations by remember { mutableStateOf(true) }
@@ -187,7 +197,16 @@ fun MapScreen(
     // stations/route end up stuck under the controls on the right.
     val density = androidx.compose.ui.platform.LocalDensity.current
     val rightRailPx = with(density) { (14 + 44 + 8).dp.toPx().toInt() }
-    val leftRailPx = with(density) { (14 + 46 + 8).dp.toPx().toInt() }  // compass + pad
+    // The only chrome on the LEFT edge is the top-left compass FAB and
+    // the bottom-left scale legend — both of which already sit
+    // *inside* the top/bottom insets (topInsetPx ≈ 150dp, bottomNavPx
+    // covers the scale legend's strip). Nothing lives in the left
+    // middle strip, so we only need a small visual margin from the
+    // screen edge, not a full compass-width inset. This lets
+    // zoom-to-route (Fullscreen) actually use the left half of the
+    // screen instead of wasting ~68dp to avoid a compass that was
+    // already excluded vertically.
+    val leftRailPx = with(density) { 14.dp.toPx().toInt() }
     val statusBarTopPx = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBarBottomPx = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     // Top chrome = stats strip at the top + clearance for the
@@ -414,6 +433,9 @@ fun MapScreen(
                 onMapViewportSnapshot = onMapViewportSnapshot,
                 initialMapCenter = initialMapCenter,
                 initialMapZoom = initialMapZoom,
+                locateMode = locateMode,
+                onLocateModeChanged = { locateMode = it },
+                deviceHeading = deviceHeading,
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -440,7 +462,16 @@ fun MapScreen(
 
             // Compass — top-left, below stats strip.
             CompassButton(
-                onClick = { mapCommand = MapCommand.RESET_ROTATION },
+                onClick = {
+                    // If we're locked to the device heading, reset
+                    // demotes to plain position-following so the
+                    // heading effect doesn't immediately re-rotate
+                    // the map after the user asks for north-up.
+                    if (locateMode == LocateMode.Compass) {
+                        locateMode = LocateMode.Following
+                    }
+                    mapCommand = MapCommand.RESET_ROTATION
+                },
                 mapRotation = mapRotation,
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -579,7 +610,18 @@ fun MapScreen(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     LocateButton(
-                        onClick = { mapCommand = MapCommand.ZOOM_TO_LOCATION },
+                        mode = locateMode,
+                        onClick = {
+                            // Cycle Off → Following → Compass → Off.
+                            // OsmMapView observes the new mode and
+                            // takes care of recentring + (in Compass)
+                            // rotating the map to the device heading.
+                            locateMode = when (locateMode) {
+                                LocateMode.Off -> LocateMode.Following
+                                LocateMode.Following -> LocateMode.Compass
+                                LocateMode.Compass -> LocateMode.Off
+                            }
+                        },
                         modifier = Modifier.padding(end = 14.dp, bottom = 12.dp)
                     )
                 }

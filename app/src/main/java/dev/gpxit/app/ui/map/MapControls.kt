@@ -1,5 +1,10 @@
 package dev.gpxit.app.ui.map
 
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,6 +33,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.gpxit.app.ui.theme.LocalMapPalette
@@ -190,18 +200,92 @@ fun CompassFace(
 }
 
 /**
+ * Three-state location-tracking mode driven by repeated taps on the
+ * locate FAB:
+ *  - [Off]:       map is free; button shows an outline arrow.
+ *  - [Following]: map auto-centres on the user's position; button
+ *                 shows a filled arrow.
+ *  - [Compass]:   map auto-centres AND rotates so the device heading
+ *                 is up; button shows a filled arrow with a dashed
+ *                 beam passing behind it (MAPS.ME convention).
+ *
+ * Manually panning the map drops back to [Off]. Cycle order on tap:
+ * Off → Following → Compass → Off.
+ */
+enum class LocateMode { Off, Following, Compass }
+
+/**
+ * Reads `TYPE_ROTATION_VECTOR` and exposes the device's azimuth in
+ * degrees clockwise from true north (0 = north, 90 = east). Returns
+ * a constant-0 state when the sensor isn't available — callers can
+ * still render their default upright UI in that case. Updates are
+ * throttled to ~2° deltas so we don't flood Compose recomposition.
+ */
+@Composable
+fun rememberDeviceHeading(): State<Float> {
+    val heading = remember { mutableFloatStateOf(0f) }
+    val context = LocalContext.current
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        val rotationSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        if (sensorManager == null || rotationSensor == null) {
+            onDispose {}
+        } else {
+            val rotationMatrix = FloatArray(9)
+            val orientation = FloatArray(3)
+            var lastReported = Float.NaN
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
+                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                    SensorManager.getOrientation(rotationMatrix, orientation)
+                    val azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
+                        .let { if (it < 0) it + 360f else it }
+                    if (lastReported.isNaN() ||
+                        kotlin.math.abs(((azimuth - lastReported + 540f) % 360f) - 180f) > 2f
+                    ) {
+                        lastReported = azimuth
+                        heading.floatValue = azimuth
+                    }
+                }
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            }
+            sensorManager.registerListener(
+                listener, rotationSensor, SensorManager.SENSOR_DELAY_UI
+            )
+            onDispose { sensorManager.unregisterListener(listener) }
+        }
+    }
+    return heading
+}
+
+/**
  * Blue paper-plane navigation arrow used for the locate FAB — two
  * triangles (left = darker, right = lighter) meeting at the tip.
- * Matches `IconLocator` in icons.jsx.
+ * Matches `IconLocator` in icons.jsx. Renders three variants keyed
+ * to [mode]: outline-only when off, two-toned fill when following
+ * the position, and fill + dashed beam when locked to the compass.
  */
 @Composable
 fun LocatorArrow(
+    mode: LocateMode = LocateMode.Following,
     modifier: Modifier = Modifier,
     size: Dp = 24.dp,
 ) {
     val primary = Color(0xFF3A72F4)
     val secondary = Color(0xFF5A8BFF)
-    Canvas(modifier = modifier.size(size)) {
+    // The button icon is a static affordance — it does NOT track the
+    // device heading. Compass (heading-locked) stands the chevron
+    // upright because that mode IS following the heading; the still
+    // chevron + heading-up map together signal the lock. Off and the
+    // plain centred-Following state both render at a fixed 45° tilt
+    // so the FAB keeps the recognisable "navigate to me" silhouette.
+    val canvasMod = if (mode == LocateMode.Compass) {
+        modifier.size(size)
+    } else {
+        modifier.size(size).rotate(45f)
+    }
+    Canvas(modifier = canvasMod) {
         val w = this.size.width
         val h = this.size.height
         val cx = w / 2f
@@ -212,6 +296,13 @@ fun LocatorArrow(
             lineTo(cx, h * 0.70f)
             lineTo(w * 0.22f, h * 0.88f)
             close()
+        }
+        if (mode == LocateMode.Off) {
+            // Outline-only — same silhouette as Following so the
+            // button doesn't visually jump on transition, but no
+            // fill so the user reads it as "tracking is off".
+            drawPath(outline, primary, style = Stroke(width = 1.8f))
+            return@Canvas
         }
         drawPath(outline, primary, style = Fill)
         drawPath(outline, primary, style = Stroke(width = 1f))
@@ -241,11 +332,12 @@ fun CompassButton(
 
 @Composable
 fun LocateButton(
+    mode: LocateMode,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     RoundGlassButton(onClick = onClick, modifier = modifier) {
-        LocatorArrow()
+        LocatorArrow(mode = mode)
     }
 }
 
