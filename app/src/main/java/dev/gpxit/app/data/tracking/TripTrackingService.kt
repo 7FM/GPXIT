@@ -89,8 +89,14 @@ class TripTrackingService : Service() {
             stopSelf()
             return
         }
+        // Seed the first post with whatever home recommendation is
+        // already cached. Without this the very first notification is
+        // always "Waiting for GPS…" even when "Take me home" ran
+        // *before* tracking started, and the home line doesn't appear
+        // until the user opens the peek again.
+        val initialRec = activeHomeRecommendation()
         val notif = try {
-            buildNotification(null, null)
+            buildNotification(null, initialRec)
         } catch (t: Throwable) {
             Log.e(TAG, "buildNotification failed", t)
             stopSelf()
@@ -213,27 +219,70 @@ class TripTrackingService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val stopIntent = Intent(this, TripTrackingService::class.java).apply {
+            action = ACTION_STOP
+        }
+        // getForegroundService is the canonical choice when the target
+        // is itself a foreground service — it routes through
+        // startForegroundService, which Android 12+ permits even when
+        // the notification-shade tap happens with the app in the
+        // background. getService() is silently blocked on some devices
+        // under those conditions, which presents as "nothing happens"
+        // or, on a few OEMs, as the action being suppressed entirely.
+        val stopPending = PendingIntent.getForegroundService(
+            this, REQ_STOP, stopIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val title = snap?.routeName?.takeIf { it.isNotBlank() } ?: "Trip tracking"
         val primary = snapshotLine(snap, rec)
-        @Suppress("UNUSED_VARIABLE")
-        val home = homeLine(rec) // reserved for future BigTextStyle; kept so logic stays intact
+        val home = homeLine(rec)
         val contentText = primary
+        // Collapsed view shows just the progress line; expanding the
+        // notification adds the train-catch details when "Take me home"
+        // has picked a connection.
+        val bigText = if (home != null) "$primary\n$home" else primary
 
-        // Keep this notification as minimal as possible for maximum
-        // compatibility with Android 15+ foreground-service notification
-        // validation — earlier iterations silently failed at post-time
-        // with bigger, fancier builders. If we need richer UI later
-        // (Stop action button, BigTextStyle, NAVIGATION category), add
-        // it back only after confirming the bare-bones form posts.
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        // Use a platform-provided icon for the Stop action so we
+        // sidestep any chance that a locally-declared vector drawable
+        // is failing to render in the system-UI process (which loads
+        // action icons out-of-process and has historically been picky
+        // about vector parsing on certain OEM Android builds).
+        val stopAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            getString(R.string.tracking_stop),
+            stopPending
+        ).build()
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tracking_notification)
             .setContentTitle(title)
             .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(openPending)
+            .addAction(stopAction)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            // Lock-screen visibility has to be set both on the channel
+            // (upper bound on API 26+) and here for the actual post.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            // Opt out of the Android 12+ FGS notification deferral —
+            // without this the system is allowed to hide the
+            // notification for up to ~10 seconds after startForeground,
+            // which is why tracking used to feel like it "starts late"
+            // (the service is actually running, just invisible).
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
+
+        // Diagnostic — confirm the action survived into the final
+        // Notification object. If this logs 0, the issue is in the
+        // builder; if it logs 1 but the Stop button still doesn't
+        // render, the system UI is filtering it downstream.
+        Log.i(TAG, "buildNotification: actions=${notification.actions?.size ?: 0}")
+        return notification
     }
 
     private fun snapshotLine(snap: TripSnapshot?, rec: HomeRecommendation?): String {
@@ -367,6 +416,11 @@ class TripTrackingService : Service() {
         // pattern cleanup.
         const val CHANNEL_ID = "trip_tracking_v3"
         const val NOTIFICATION_ID = 42
+
+        // Distinct request code for the Stop action PendingIntent so
+        // it can't collide with the content-intent PendingIntent
+        // (which uses requestCode = 0).
+        private const val REQ_STOP = 1
 
         private val _state = MutableStateFlow(TripState())
         /** Live service state — safe to observe from the UI process. */
