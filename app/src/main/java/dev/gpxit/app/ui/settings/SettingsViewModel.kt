@@ -113,6 +113,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepository.setTripTrackingEnabled(enabled) }
     }
 
+    fun setThemeMode(mode: dev.gpxit.app.ui.theme.ThemeMode) {
+        viewModelScope.launch { prefsRepository.setThemeMode(mode) }
+    }
+
     fun toggleConnectionProduct(product: String) {
         viewModelScope.launch {
             val current = preferences.value.connectionProducts

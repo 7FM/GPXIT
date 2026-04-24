@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -23,9 +24,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -110,13 +113,17 @@ fun TakeMeHomeFullTimeline(
             }
         }
 
-        // Body — station rows.
+        // Body — station rows. Add the system nav-bar inset to the
+        // bottom contentPadding so the last card's "+N later
+        // departures" row clears the 3-button bar (and gesture
+        // affordance on edge-to-edge devices).
         val expanded = remember { mutableStateMapOf<String, Boolean>() }
+        val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 14.dp, end = 14.dp, top = 10.dp, bottom = 20.dp,
+                start = 14.dp, end = 14.dp, top = 10.dp, bottom = 20.dp + navBarBottom,
             ),
         ) {
             items(items = options, key = { it.station.id }) { opt ->
@@ -340,13 +347,22 @@ private fun BestPill() {
 /**
  * A single departure row — direct/transfers chip + line label, then a
  * secondary line with dep/wait/arr times. Used inline for the primary
- * connection and in the expanded later-departure list.
+ * connection and in the expanded later-departure list. Tapping the
+ * row expands an inline leg-by-leg breakdown when the connection has
+ * multiple legs (delegated to the shared [ConnectionLegs] composable
+ * the station-detail sheet also uses).
  */
 @Composable
 private fun ConnectionRow(conn: TrainConnection, waitMinutes: Int, small: Boolean) {
     val palette = LocalMapPalette.current
     val direct = conn.numChanges == 0
-    Column {
+    var expanded by remember { mutableStateOf(false) }
+    val canExpand = conn.legs.isNotEmpty()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = canExpand) { expanded = !expanded }
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             TransferChip(direct = direct, transfers = conn.numChanges)
             Spacer(modifier = Modifier.width(8.dp))
@@ -356,6 +372,17 @@ private fun ConnectionRow(conn: TrainConnection, waitMinutes: Int, small: Boolea
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
             )
+            if (canExpand) {
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = DesignIcons.ChevronDown,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = palette.inkLight,
+                    modifier = Modifier
+                        .size(12.dp)
+                        .rotate(if (expanded) 180f else 0f),
+                )
+            }
         }
         Spacer(modifier = Modifier.height(if (small) 2.dp else 4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -378,6 +405,9 @@ private fun ConnectionRow(conn: TrainConnection, waitMinutes: Int, small: Boolea
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
             )
+        }
+        AnimatedVisibility(visible = expanded && canExpand) {
+            ConnectionLegs(legs = conn.legs, palette = palette)
         }
     }
 }

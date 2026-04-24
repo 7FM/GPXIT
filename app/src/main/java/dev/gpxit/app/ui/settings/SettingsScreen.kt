@@ -56,7 +56,7 @@ import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
 import dev.gpxit.app.ui.import_route.DesignIcons
 import dev.gpxit.app.ui.theme.LocalMapPalette
-import dev.gpxit.app.ui.theme.MapPaletteDefault
+import dev.gpxit.app.ui.theme.rememberMapPalette
 import kotlinx.coroutines.flow.StateFlow
 
 private val ALL_PRODUCTS = listOf(
@@ -89,6 +89,7 @@ fun SettingsScreen(
     poiDbDownloadState: dev.gpxit.app.GpxitDownloadState,
     poiDbAvailable: Boolean,
     onSetTripTrackingEnabled: (Boolean) -> Unit,
+    onSetThemeMode: (dev.gpxit.app.ui.theme.ThemeMode) -> Unit,
     stationSuggestions: List<TransitRepository.StationSuggestion>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -99,8 +100,8 @@ fun SettingsScreen(
 
     // System-bar icon tint is handled centrally in GpxitApp.
 
-    CompositionLocalProvider(LocalMapPalette provides MapPaletteDefault) {
-        val palette = MapPaletteDefault
+    val palette = rememberMapPalette()
+    CompositionLocalProvider(LocalMapPalette provides palette) {
         val statusBars = WindowInsets.statusBars.asPaddingValues()
         Column(
             modifier = modifier
@@ -454,7 +455,79 @@ fun SettingsScreen(
                         }
                     }
                 }
+
+                // Appearance — theme override
+                AccordionGroup(
+                    id = "appearance",
+                    title = "Appearance",
+                    summary = themeSummary(prefs.themeMode),
+                    icon = DesignIcons.Layers,
+                    isOpen = openGroup == "appearance",
+                    onToggle = {
+                        openGroup = if (openGroup == "appearance") null else "appearance"
+                    },
+                ) {
+                    ThemePicker(
+                        current = prefs.themeMode,
+                        onSelect = onSetThemeMode,
+                    )
+                }
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+private fun themeSummary(mode: dev.gpxit.app.ui.theme.ThemeMode): String = when (mode) {
+    dev.gpxit.app.ui.theme.ThemeMode.SYSTEM -> "Follow system"
+    dev.gpxit.app.ui.theme.ThemeMode.LIGHT -> "Always light"
+    dev.gpxit.app.ui.theme.ThemeMode.DARK -> "Always dark"
+}
+
+/**
+ * Three-segment toggle: System / Light / Dark. The active segment
+ * fills with `palette.accent`; the others sit on `palette.sheetBg`
+ * with the same border radius so the unselected pair reads as a
+ * single bar with the picked option lifted out.
+ */
+@Composable
+private fun ThemePicker(
+    current: dev.gpxit.app.ui.theme.ThemeMode,
+    onSelect: (dev.gpxit.app.ui.theme.ThemeMode) -> Unit,
+) {
+    val palette = LocalMapPalette.current
+    val outerShape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(outerShape)
+            .background(palette.sheetBg)
+            .border(1.dp, palette.line, outerShape)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        listOf(
+            dev.gpxit.app.ui.theme.ThemeMode.SYSTEM to "System",
+            dev.gpxit.app.ui.theme.ThemeMode.LIGHT to "Light",
+            dev.gpxit.app.ui.theme.ThemeMode.DARK to "Dark",
+        ).forEach { (mode, label) ->
+            val active = mode == current
+            val inner = RoundedCornerShape(9.dp)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(inner)
+                    .background(if (active) palette.accent else Color.Transparent)
+                    .clickable { onSelect(mode) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    color = if (active) palette.onAccent else palette.ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }

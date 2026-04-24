@@ -24,7 +24,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import de.schildbach.pte.dto.Product
 import dev.gpxit.app.data.gpx.findClosestPointIndex
@@ -382,32 +381,32 @@ fun GpxitApp(
         }
     }
 
-    GpxitTheme {
+    // Resolve the user's theme override: SYSTEM follows the device,
+    // LIGHT / DARK force the corresponding mode regardless. Default
+    // SYSTEM is what the prefs flow returns until DataStore loads,
+    // so the very first frame matches the device setting.
+    val systemIsDark = isSystemInDarkTheme()
+    val resolvedDark = when (prefs.themeMode) {
+        dev.gpxit.app.ui.theme.ThemeMode.LIGHT -> false
+        dev.gpxit.app.ui.theme.ThemeMode.DARK -> true
+        dev.gpxit.app.ui.theme.ThemeMode.SYSTEM -> systemIsDark
+    }
+    GpxitTheme(darkTheme = resolvedDark) {
         val navController = rememberNavController()
 
-        // Single source of truth for system-bar icon tint. Map and
-        // Settings are light-only per the design, so they ALWAYS want
-        // dark icons. Every other screen follows the device night-mode
-        // setting (light icons in dark mode, dark icons in light mode),
-        // which matches what the Import screen wants. Running this as
-        // a SideEffect on a currentBackStackEntry-keyed state ensures
-        // the tint updates on every navigation push/pop; no more
-        // racing with GpxitTheme's own SideEffect.
-        val navEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = navEntry?.destination?.route
-        val wantLightScrim = currentRoute == "map" || currentRoute == "settings"
-        val systemIsDark = isSystemInDarkTheme()
+        // Single source of truth for system-bar icon tint. Every
+        // screen now has light + dark palettes (handoff3) so we
+        // simply mirror the resolved theme: light icons on dark bg,
+        // dark icons on light bg. Re-runs on theme-pref changes
+        // because `resolvedDark` is captured here.
         val view = LocalView.current
         if (!view.isInEditMode) {
             SideEffect {
                 val window = (view.context as? android.app.Activity)?.window
                     ?: return@SideEffect
                 val controller = WindowCompat.getInsetsController(window, view)
-                // isAppearanceLightStatusBars = true  → DARK icons (for
-                // a LIGHT background). That's what both map/settings
-                // need unconditionally, and what any non-dark-mode
-                // screen needs elsewhere.
-                val appearLight = wantLightScrim || !systemIsDark
+                // isAppearanceLightStatusBars = true → DARK icons.
+                val appearLight = !resolvedDark
                 controller.isAppearanceLightStatusBars = appearLight
                 controller.isAppearanceLightNavigationBars = appearLight
             }
@@ -712,6 +711,7 @@ fun GpxitApp(
                     poiDbDownloadState = poiDbState,
                     poiDbAvailable = poiDatabase.isAvailable(),
                     onSetTripTrackingEnabled = { settingsViewModel.setTripTrackingEnabled(it) },
+                    onSetThemeMode = { settingsViewModel.setThemeMode(it) },
                     stationSuggestions = suggestions,
                     onBack = { navController.popBackStack() }
                 )

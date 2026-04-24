@@ -8,7 +8,25 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * The user's selected theme override, persisted in DataStore.
+ *  - [SYSTEM] follows the device night-mode setting
+ *  - [LIGHT] / [DARK] force the chosen mode regardless of system
+ */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/**
+ * Resolved "is the UI currently rendering dark?" flag, exposed as a
+ * CompositionLocal so individual screens / palettes can react to the
+ * user's `ThemeMode` override without each having to plumb it through
+ * their own props. Set by [GpxitTheme] at the root of the tree;
+ * defaults to false so callers in @Preview don't crash.
+ */
+val LocalIsDark = staticCompositionLocalOf { false }
 
 @Composable
 fun GpxitTheme(
@@ -25,14 +43,12 @@ fun GpxitTheme(
     }
 
     // System-bar icon tint is driven from GpxitApp via a single
-    // SideEffect keyed to the current NavHost route — see
-    // `GpxitApp`. Having this SideEffect here too used to race with
-    // per-screen overrides (the map + settings are light-only
-    // regardless of night mode) and leave the icons invisible after
-    // certain navigation flows.
+    // SideEffect keyed to the resolved dark flag — see `GpxitApp`.
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
+    CompositionLocalProvider(LocalIsDark provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            content = content
+        )
+    }
 }

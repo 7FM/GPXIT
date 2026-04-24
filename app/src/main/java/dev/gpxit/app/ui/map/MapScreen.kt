@@ -7,7 +7,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,18 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -42,15 +33,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.gpxit.app.data.gpx.routeClimbDescentMeters
 import dev.gpxit.app.domain.ConnectionOption
 import dev.gpxit.app.domain.StationCandidate
-import dev.gpxit.app.ui.components.StationCard
 import dev.gpxit.app.ui.import_route.DesignIcons
 import dev.gpxit.app.ui.theme.LocalMapPalette
-import dev.gpxit.app.ui.theme.MapPaletteDefault
+import dev.gpxit.app.ui.theme.rememberMapPalette
 import kotlinx.coroutines.flow.StateFlow
 import org.osmdroid.util.GeoPoint
 import java.time.LocalTime
@@ -260,6 +249,9 @@ fun MapScreen(
         peek = MapPeek.None
     }
     BackHandler(enabled = fullscreenTimeline) { fullscreenTimeline = false }
+    BackHandler(enabled = selectedStationInfo != null || isLoadingStationInfo) {
+        onDismissStationInfo()
+    }
 
     // Current viewport (latS, latN, lonW, lonE) — null until map reports it.
     var viewportBounds by remember {
@@ -326,8 +318,6 @@ fun MapScreen(
         }
     }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-
     // Pre-compute Climb once per route.
     val climbDescent = remember(routeInfo?.points) {
         routeInfo?.points?.let { routeClimbDescentMeters(it) } ?: (0 to 0)
@@ -336,11 +326,12 @@ fun MapScreen(
     // System-bar icon tint is handled centrally in GpxitApp (keyed to
     // the current NavHost route). No per-screen override needed.
 
-    CompositionLocalProvider(LocalMapPalette provides MapPaletteDefault) {
+    val palette = rememberMapPalette()
+    CompositionLocalProvider(LocalMapPalette provides palette) {
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(MapPaletteDefault.surface)
+                .background(palette.sheetBg)
         ) {
             // Chrome insets for the Fullscreen-fit command — keep the
             // route out from under any of the overlaid controls. The
@@ -570,7 +561,7 @@ fun MapScreen(
                     SquareGlassButton(
                         onClick = onClearNearbyStations,
                     ) {
-                        Text("\u2715", color = MapPaletteDefault.ink)
+                        Text("\u2715", color = palette.ink)
                     }
                 }
             }
@@ -592,7 +583,7 @@ fun MapScreen(
                 Text(
                     text = "No route loaded",
                     modifier = Modifier.align(Alignment.Center),
-                    color = MapPaletteDefault.inkSoft,
+                    color = palette.inkSoft,
                 )
             }
 
@@ -653,6 +644,31 @@ fun MapScreen(
                         }
                     }
                     MapPeek.None -> {}
+                }
+
+                // Station detail peek — sits between any nav-button
+                // peek sheet and the bottom nav so its dismiss
+                // chevron lines up with the other peek interactions.
+                if (selectedStationInfo != null || isLoadingStationInfo) {
+                    val isThisDestination =
+                        selectedStationInfo?.station?.id == userDestinationStation?.id &&
+                        selectedStationInfo != null
+                    StationDetailSheet(
+                        option = selectedStationInfo,
+                        isLoading = isLoadingStationInfo,
+                        isThisDestination = isThisDestination,
+                        navigationActive = navigationActive,
+                        userLat = userLocation?.latitude,
+                        userLon = userLocation?.longitude,
+                        avgSpeedKmh = avgSpeedKmh,
+                        onClose = onDismissStationInfo,
+                        onSetDestination = {
+                            selectedStationInfo?.let { onSetDestination(it) }
+                        },
+                        onClearDestination = { onSetDestination(null) },
+                        onToggleNavigation = onToggleNavigation,
+                        onLoadMoreConnections = onLoadMoreConnections,
+                    )
                 }
 
                 MapBottomNav(
@@ -725,7 +741,7 @@ fun MapScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = downloadState.label,
-                        color = MapPaletteDefault.inkSoft,
+                        color = palette.inkSoft,
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -733,90 +749,6 @@ fun MapScreen(
         }
     }
 
-    // Station info bottom sheet (single-station tap) — keeps the
-    // existing navigate-by-bike / set-destination flow.
-    if (selectedStationInfo != null || isLoadingStationInfo) {
-        ModalBottomSheet(
-            onDismissRequest = onDismissStationInfo,
-            sheetState = sheetState
-        ) {
-            if (isLoadingStationInfo) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            } else if (selectedStationInfo != null) {
-                val context = LocalContext.current
-                Column(
-                    modifier = Modifier
-                        .padding(start = 16.dp, end = 16.dp, bottom = 32.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    StationCard(
-                        option = selectedStationInfo,
-                        isBest = false,
-                        onLoadMore = onLoadMoreConnections,
-                        userLat = userLocation?.latitude,
-                        userLon = userLocation?.longitude
-                    )
-                    val isThisDestination = selectedStationInfo.station.id == userDestinationStation?.id
-                    OutlinedButton(
-                        onClick = {
-                            if (isThisDestination) onSetDestination(null)
-                            else onSetDestination(selectedStationInfo)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp)
-                    ) {
-                        Text(
-                            if (isThisDestination) "Clear destination"
-                            else "Set as destination"
-                        )
-                    }
-                    if (isThisDestination) {
-                        Button(
-                            onClick = onToggleNavigation,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp)
-                        ) {
-                            Text(
-                                if (navigationActive) "Stop navigation"
-                                else "Start navigation"
-                            )
-                        }
-                    }
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            val station = selectedStationInfo.station
-                            val label = android.net.Uri.encode(station.name)
-                            val uri = android.net.Uri.parse(
-                                "geo:${station.lat},${station.lon}?q=${station.lat},${station.lon}($label)"
-                            )
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                            try {
-                                context.startActivity(intent)
-                            } catch (_: android.content.ActivityNotFoundException) {
-                                // no map app installed
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Text("Navigate by bike")
-                    }
-                }
-            }
-        }
-    }
 }
 
 /**

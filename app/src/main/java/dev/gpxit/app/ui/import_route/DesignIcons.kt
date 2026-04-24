@@ -147,6 +147,19 @@ object DesignIcons {
         "M 15 17 L 17 21",
     )
 
+    /**
+     * IconBike — bicycle silhouette: two wheels (3-radius circles
+     * at (5.5,17) and (18.5,17)) plus the frame triangle, top-tube
+     * and seatpost flourish. Wheels become SVG arcs so we keep a
+     * single ImageVector.
+     */
+    val Bike: ImageVector = outlineMulti(
+        "Bike",
+        "M 8.5 17 A 3 3 0 1 1 2.5 17 A 3 3 0 1 1 8.5 17 Z",
+        "M 21.5 17 A 3 3 0 1 1 15.5 17 A 3 3 0 1 1 21.5 17 Z",
+        "M 5.5 17 L 10 10 L 15 10 L 18.5 17 M 10 10 L 14 10 M 13 6 H 16 L 15 10",
+    )
+
     /** IconMountain — two peaks. */
     val Mountain: ImageVector = outline(
         "Mountain",

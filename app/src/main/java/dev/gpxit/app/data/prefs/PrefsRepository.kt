@@ -38,6 +38,7 @@ class PrefsRepository(private val context: Context) {
         val POI_DB_LAST_UPDATE_MS = longPreferencesKey("poi_db_last_update_ms")
         val POI_DB_AUTO_UPDATE = booleanPreferencesKey("poi_db_auto_update")
         val TRIP_TRACKING_ENABLED = booleanPreferencesKey("trip_tracking_enabled")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
 
         val DEFAULT_PRODUCTS = setOf("HIGH_SPEED_TRAIN", "REGIONAL_TRAIN", "SUBURBAN_TRAIN")
         val DEFAULT_CONNECTION_PRODUCTS = setOf(
@@ -74,7 +75,14 @@ class PrefsRepository(private val context: Context) {
          * way to spin up the service — also a belt-and-braces promise
          * that location isn't collected in the background.
          */
-        val tripTrackingEnabled: Boolean = true
+        val tripTrackingEnabled: Boolean = true,
+        /**
+         * Theme override. Stored as the lowercase enum name
+         * ("system" / "light" / "dark"); unrecognised / missing
+         * values default to following the device night-mode setting.
+         */
+        val themeMode: dev.gpxit.app.ui.theme.ThemeMode =
+            dev.gpxit.app.ui.theme.ThemeMode.SYSTEM,
     )
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -99,7 +107,14 @@ class PrefsRepository(private val context: Context) {
             maxStationsToCheck = prefs[MAX_STATIONS_TO_CHECK] ?: 8,
             poiDbLastUpdateMs = prefs[POI_DB_LAST_UPDATE_MS] ?: 0L,
             poiDbAutoUpdate = prefs[POI_DB_AUTO_UPDATE] ?: true,
-            tripTrackingEnabled = prefs[TRIP_TRACKING_ENABLED] ?: true
+            tripTrackingEnabled = prefs[TRIP_TRACKING_ENABLED] ?: true,
+            themeMode = prefs[THEME_MODE]
+                ?.let { name ->
+                    runCatching {
+                        dev.gpxit.app.ui.theme.ThemeMode.valueOf(name.uppercase())
+                    }.getOrNull()
+                }
+                ?: dev.gpxit.app.ui.theme.ThemeMode.SYSTEM,
         )
     }
 
@@ -178,5 +193,9 @@ class PrefsRepository(private val context: Context) {
 
     suspend fun setTripTrackingEnabled(enabled: Boolean) {
         context.dataStore.edit { it[TRIP_TRACKING_ENABLED] = enabled }
+    }
+
+    suspend fun setThemeMode(mode: dev.gpxit.app.ui.theme.ThemeMode) {
+        context.dataStore.edit { it[THEME_MODE] = mode.name.lowercase() }
     }
 }
