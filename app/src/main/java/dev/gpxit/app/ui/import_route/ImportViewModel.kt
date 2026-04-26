@@ -51,6 +51,9 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                         val cachedPois = withContext(Dispatchers.IO) {
                             routeStorage.loadPois()
                         }
+                        val discoveryFailed = withContext(Dispatchers.IO) {
+                            routeStorage.stationDiscoveryFailed()
+                        }
                         val routeWithStations = route.copy(stations = stations)
                         _routeInfo.value = routeWithStations
                         _routePois.value = cachedPois
@@ -60,7 +63,12 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                             totalDistanceKm = route.totalDistanceMeters / 1000.0,
                             stationCount = stations.size,
                             poiCount = cachedPois.size,
-                            stationDiscoveryStatus = "${stations.size} stations loaded"
+                            stationDiscoveryFailed = discoveryFailed,
+                            stationDiscoveryStatus = if (discoveryFailed) {
+                                "Couldn't reach transit service"
+                            } else {
+                                "${stations.size} stations loaded"
+                            }
                         )
                     }
                 } catch (_: Exception) {
@@ -158,11 +166,15 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
-                // Save GPX to internal storage and clear stale caches
+                // Save GPX to internal storage and clear stale caches.
+                // Also clear the prior failure marker so a successful new
+                // import doesn't inherit a stale "couldn't reach transit
+                // service" banner from the previous route.
                 withContext(Dispatchers.IO) {
                     routeStorage.saveGpx(bytes)
                     routeStorage.clearNearbyStations()
                     routeStorage.clearPois()
+                    routeStorage.clearStationDiscoveryFailed()
                 }
                 _routePois.value = emptyList()
                 // Old "take me home" recommendation is tied to the prior
@@ -176,21 +188,29 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                     routeName = route.name,
                     pointCount = route.points.size,
                     totalDistanceKm = route.totalDistanceMeters / 1000.0,
+                    stationDiscoveryFailed = false,
                     stationDiscoveryStatus = "Discovering stations along route..."
                 )
 
                 // Precompute stations along the route
                 val prefs = prefsRepository.preferences.first()
-                val stations = transitRepository.discoverStationsAlongRoute(
+                val discovery = transitRepository.discoverStationsAlongRoute(
                     points = route.points,
                     samplingIntervalMeters = prefs.samplingIntervalMeters,
                     searchRadiusMeters = prefs.searchRadiusMeters,
                     requiredProducts = prefs.enabledProducts
                 )
+                val stations = discovery.stations
 
-                // Save stations to disk
+                // Save stations to disk. On full network failure, mark the
+                // sidecar so the home-screen banner reappears across restarts.
                 withContext(Dispatchers.IO) {
                     routeStorage.saveStations(stations)
+                    if (discovery.networkFailed) {
+                        routeStorage.markStationDiscoveryFailed()
+                    } else {
+                        routeStorage.clearStationDiscoveryFailed()
+                    }
                 }
 
                 val routeWithStations = route.copy(stations = stations)
@@ -199,7 +219,10 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                 val dbAvailable = poiDatabase.isAvailable()
                 _uiState.value = _uiState.value.copy(
                     stationCount = stations.size,
-                    stationDiscoveryStatus = if (dbAvailable) {
+                    stationDiscoveryFailed = discovery.networkFailed,
+                    stationDiscoveryStatus = if (discovery.networkFailed) {
+                        "Couldn't reach transit service"
+                    } else if (dbAvailable) {
                         "${stations.size} stations found — extracting POIs\u2026"
                     } else {
                         "${stations.size} stations found"
@@ -233,6 +256,8 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                     isLoading = false,
                     poiCount = pois.size,
                     stationDiscoveryStatus = when {
+                        discovery.networkFailed ->
+                            "Couldn't reach transit service"
                         !dbAvailable ->
                             "${stations.size} stations — POI dataset not downloaded"
                         pois.isEmpty() ->
@@ -255,6 +280,55 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Re-run station discovery against the currently-loaded route. Used by
+     * the offline-import retry banner *and* the "Reload stations" menu item
+     * (so even a successful previous discovery can be force-refreshed). On
+     * a fresh failure we keep the previously-discovered station list — the
+     * user shouldn't lose good data because they tapped reload while
+     * offline.
+     */
+    fun reloadStations() {
+        val route = _routeInfo.value ?: return
+        if (_uiState.value.isLoading) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isLoading = true,
+                stationDiscoveryStatus = "Retrying station discovery…",
+            )
+            val prefs = prefsRepository.preferences.first()
+            val discovery = transitRepository.discoverStationsAlongRoute(
+                points = route.points,
+                samplingIntervalMeters = prefs.samplingIntervalMeters,
+                searchRadiusMeters = prefs.searchRadiusMeters,
+                requiredProducts = prefs.enabledProducts,
+            )
+            if (discovery.networkFailed) {
+                withContext(Dispatchers.IO) {
+                    routeStorage.markStationDiscoveryFailed()
+                }
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    stationDiscoveryFailed = true,
+                    stationDiscoveryStatus = "Couldn't reach transit service",
+                )
+            } else {
+                val stations = discovery.stations
+                withContext(Dispatchers.IO) {
+                    routeStorage.saveStations(stations)
+                    routeStorage.clearStationDiscoveryFailed()
+                }
+                _routeInfo.value = route.copy(stations = stations)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    stationCount = stations.size,
+                    stationDiscoveryFailed = false,
+                    stationDiscoveryStatus = "${stations.size} stations found",
+                )
+            }
+        }
+    }
+
     /** Thrown by the head sniff in [importGpx] when the file lacks a `<gpx` tag. */
     private class NotAGpxFileException : RuntimeException()
 }
@@ -267,5 +341,6 @@ data class ImportUiState(
     val totalDistanceKm: Double = 0.0,
     val stationCount: Int = 0,
     val poiCount: Int = 0,
+    val stationDiscoveryFailed: Boolean = false,
     val stationDiscoveryStatus: String? = null
 )

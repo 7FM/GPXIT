@@ -218,4 +218,32 @@ object DesignIcons {
         "ChevronRight",
         "M 9 6 L 15 12 L 9 18"
     )
+
+    /**
+     * IconRefresh — single rotating arrow. Two short arc segments
+     * forming a near-circle with arrowhead chevrons at one end so it
+     * reads as "reload" at small sizes (used in the route card menu).
+     */
+    val Refresh: ImageVector = outlineMulti(
+        "Refresh",
+        // Top half of the loop, ending in an arrowhead at the right.
+        "M 4 12 A 8 8 0 0 1 18 7",
+        // Arrowhead at the right end of the top arc.
+        "M 18 4 V 7 H 15",
+        // Bottom half of the loop, ending in an arrowhead at the left.
+        "M 20 12 A 8 8 0 0 1 6 17",
+        // Arrowhead at the left end of the bottom arc.
+        "M 6 20 V 17 H 9",
+    )
+
+    /**
+     * IconAlert — warning triangle with bang. Used by the offline
+     * station-discovery retry banner inside the route card.
+     */
+    val Alert: ImageVector = outlineMulti(
+        "Alert",
+        "M 12 4 L 22 20 H 2 Z",
+        "M 12 10 V 14",
+        "M 12 17 V 17.5",
+    )
 }

@@ -66,6 +66,7 @@ fun ImportScreen(
     brouterInstalled: Boolean = true,
     onInstallBRouter: () -> Unit = {},
     onClearRoute: () -> Unit = {},
+    onReloadStations: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -153,6 +154,7 @@ fun ImportScreen(
                         onOpenMap = onNavigateToMap,
                         onReplace = { launcher.launch(gpxPickerMimeTypes) },
                         onDelete = { showClearConfirm = true },
+                        onReloadStations = onReloadStations,
                     )
                 } else {
                     EmptyCard(
@@ -389,6 +391,7 @@ private fun LoadedCard(
     onOpenMap: () -> Unit,
     onReplace: () -> Unit,
     onDelete: () -> Unit,
+    onReloadStations: () -> Unit,
 ) {
     val c = LocalHomePalette.current
     val (from, to) = remember(routeInfo.name) { splitRouteName(routeInfo.name) }
@@ -503,6 +506,22 @@ private fun LoadedCard(
                         },
                     )
                     androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Reload stations", color = c.ink) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = DesignIcons.Refresh,
+                                contentDescription = null,
+                                tint = c.ink,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        enabled = !uiState.isLoading,
+                        onClick = {
+                            menuOpen = false
+                            onReloadStations()
+                        },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Delete route", color = c.accentDark) },
                         leadingIcon = {
                             Icon(
@@ -547,6 +566,17 @@ private fun LoadedCard(
                 modifier = Modifier
                     .matchParentSize()
                     .clickable(onClick = onOpenMap)
+            )
+        }
+
+        // Offline / failed-discovery banner — only shown when the last
+        // station-discovery attempt couldn't reach the transit provider.
+        // Persists across app restarts via the marker file in
+        // RouteStorage.stationDiscoveryFailed().
+        if (uiState.stationDiscoveryFailed) {
+            StationRetryBanner(
+                retrying = uiState.isLoading,
+                onRetry = onReloadStations,
             )
         }
 
@@ -621,6 +651,59 @@ private fun LoadedCard(
                     modifier = Modifier
                         .width(140.dp)
                         .height(32.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StationRetryBanner(
+    retrying: Boolean,
+    onRetry: () -> Unit,
+) {
+    val c = LocalHomePalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Icon(
+            imageVector = DesignIcons.Alert,
+            contentDescription = null,
+            tint = c.accent,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "Couldn't reach transit service",
+            color = c.cocoaInk,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+        if (retrying) {
+            CircularProgressIndicator(
+                color = c.accent,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(c.accent)
+                    .clickable(onClick = onRetry)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Retry",
+                    color = c.accentDeepInk,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }

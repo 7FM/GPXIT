@@ -4,9 +4,11 @@ import de.schildbach.pte.DbProvider
 import de.schildbach.pte.NetworkProvider
 import de.schildbach.pte.dto.Location
 import de.schildbach.pte.dto.LocationType
+import de.schildbach.pte.dto.NearbyLocationsResult
 import de.schildbach.pte.dto.Point
 import de.schildbach.pte.dto.Product
 import de.schildbach.pte.dto.TripOptions
+import java.io.IOException
 import dev.gpxit.app.data.gpx.haversineMeters
 import dev.gpxit.app.domain.StationCandidate
 import dev.gpxit.app.domain.TrainConnection
@@ -39,6 +41,15 @@ class TransitRepository {
             maxDistanceMeters,
             maxLocations
         )
+        // The provider sometimes swallows network failures and returns a
+        // non-OK status (typically SERVICE_DOWN with null locations) instead
+        // of throwing — e.g. when offline or when the upstream HAFAS endpoint
+        // refuses the request. Surface that as an exception so the per-sample
+        // catch in discoverStationsAlongRoute counts it as a failure rather
+        // than a valid "zero stations here" result.
+        if (result.status != null && result.status != NearbyLocationsResult.Status.OK) {
+            throw IOException("Transit provider status: ${result.status}")
+        }
         val raw = result.locations?.mapNotNull { loc ->
             val locId = loc.id ?: return@mapNotNull null
             val locCoord = loc.coord ?: return@mapNotNull null
@@ -190,6 +201,18 @@ class TransitRepository {
     }
 
     /**
+     * Result of [discoverStationsAlongRoute]. [networkFailed] is true when
+     * every per-sample-point query threw — typically means the user is offline
+     * or the transit provider is unreachable, not that the route truly has no
+     * stations along it. Partial failures still surface as a successful result
+     * with whatever stations made it through.
+     */
+    data class StationDiscoveryResult(
+        val stations: List<StationCandidate>,
+        val networkFailed: Boolean,
+    )
+
+    /**
      * Discover stations along a route by sampling points at intervals.
      * Returns deduplicated stations sorted by distance along the route.
      */
@@ -198,8 +221,10 @@ class TransitRepository {
         samplingIntervalMeters: Int = 2000,
         searchRadiusMeters: Int = 2000,
         requiredProducts: Set<String>? = null
-    ): List<StationCandidate> = withContext(Dispatchers.IO) {
-        if (points.isEmpty()) return@withContext emptyList()
+    ): StationDiscoveryResult = withContext(Dispatchers.IO) {
+        if (points.isEmpty()) {
+            return@withContext StationDiscoveryResult(emptyList(), networkFailed = false)
+        }
 
         // Sample points at regular intervals along the route
         val samplePoints = mutableListOf<dev.gpxit.app.domain.RoutePoint>()
@@ -216,25 +241,32 @@ class TransitRepository {
             samplePoints.add(points.last())
         }
 
-        // Query nearby stations for each sample point in parallel
+        // Query nearby stations for each sample point in parallel. We track
+        // success/failure per sample so the caller can distinguish "every
+        // query threw" (e.g. offline) from "queries returned, just nothing
+        // matched" (sparse rural route).
         val deferredResults = samplePoints.map { samplePoint ->
             async {
                 try {
                     // Fetch a large per-sample batch so train stations aren't
                     // crowded out by nearby tram/bus stops in dense urban areas
                     // (e.g. Mannheim Hbf sits in a cluster of ~50+ stops).
-                    findNearbyStations(
+                    val list = findNearbyStations(
                         samplePoint.lat, samplePoint.lon,
                         searchRadiusMeters, 100,
                         requiredProducts
                     )
+                    list to false
                 } catch (_: Exception) {
-                    emptyList()
+                    emptyList<StationCandidate>() to true
                 }
             }
         }
 
-        val allStations = deferredResults.awaitAll().flatten()
+        val perSample = deferredResults.awaitAll()
+        val allStations = perSample.flatMap { it.first }
+        val failedCount = perSample.count { it.second }
+        val networkFailed = samplePoints.isNotEmpty() && failedCount == samplePoints.size
 
         // Deduplicate by station ID, keeping the one with smallest distance from route
         val deduped = allStations
@@ -256,7 +288,8 @@ class TransitRepository {
         }
         // Cluster across samples too: neighbouring sample batches may each
         // have kept a different "child" of the same hub.
-        clusterStations(withRouteDistance).sortedBy { it.distanceAlongRouteMeters }
+        val stations = clusterStations(withRouteDistance).sortedBy { it.distanceAlongRouteMeters }
+        StationDiscoveryResult(stations, networkFailed)
     }
 
     /**

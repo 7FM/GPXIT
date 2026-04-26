@@ -438,6 +438,7 @@ fun GpxitApp(
                         savedMapZoom = null
                         importViewModel.clearRoute()
                     },
+                    onReloadStations = importViewModel::reloadStations,
                 )
             }
             composable("map") {

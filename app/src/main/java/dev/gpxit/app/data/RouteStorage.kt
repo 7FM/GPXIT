@@ -17,6 +17,12 @@ class RouteStorage(private val context: Context) {
     private val stationsFile get() = File(context.filesDir, "current_stations.json")
     private val nearbyFile get() = File(context.filesDir, "nearby_stations.json")
     private val poisFile get() = File(context.filesDir, "route_pois.json")
+    // Sidecar marker: present iff the last station-discovery attempt for the
+    // current route failed because the transit provider was unreachable
+    // (typically offline import). Kept separate from stationsFile so the
+    // existing "preserve previously-discovered stations on a failed reload"
+    // semantics fall out for free.
+    private val stationsFailedFile get() = File(context.filesDir, "stations_discovery_failed.flag")
 
     fun hasRoute(): Boolean = gpxFile.exists()
 
@@ -82,11 +88,22 @@ class RouteStorage(private val context: Context) {
         poisFile.delete()
     }
 
+    fun markStationDiscoveryFailed() {
+        stationsFailedFile.writeText("1")
+    }
+
+    fun clearStationDiscoveryFailed() {
+        stationsFailedFile.delete()
+    }
+
+    fun stationDiscoveryFailed(): Boolean = stationsFailedFile.exists()
+
     fun clear() {
         gpxFile.delete()
         stationsFile.delete()
         nearbyFile.delete()
         poisFile.delete()
+        stationsFailedFile.delete()
     }
 
     private fun saveStationsToFile(file: File, stations: List<StationCandidate>) {
