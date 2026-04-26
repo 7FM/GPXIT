@@ -161,6 +161,7 @@ fun ImportScreen(
                         isLoading = uiState.isLoading,
                         loadingStatus = uiState.stationDiscoveryStatus,
                         error = uiState.error,
+                        onImport = { launcher.launch(gpxPickerMimeTypes) },
                     )
                 }
             }
@@ -753,6 +754,7 @@ private fun EmptyCard(
     isLoading: Boolean,
     loadingStatus: String?,
     error: String?,
+    onImport: () -> Unit,
 ) {
     val c = LocalHomePalette.current
     Box(
@@ -765,6 +767,10 @@ private fun EmptyCard(
                 brush = SolidColor(c.emptyCardBorder),
                 shape = RoundedCornerShape(22.dp)
             )
+            // Whole card mirrors the bottom "Import GPX File" button while
+            // empty — disabled mid-import so a second tap can't fire the
+            // SAF picker on top of the in-flight launcher.
+            .clickable(enabled = !isLoading, onClick = onImport)
             .padding(horizontal = 20.dp, vertical = 32.dp),
         contentAlignment = Alignment.Center,
     ) {
