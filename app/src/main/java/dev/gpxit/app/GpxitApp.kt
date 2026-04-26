@@ -424,7 +424,20 @@ fun GpxitApp(
                     onDownloadOfflineMap = { scope.launch { triggerDownload(importRouteInfo, mapTileDownloader) { downloadState = it } } },
                     downloadState = downloadState,
                     brouterInstalled = brouterInstalled,
-                    onInstallBRouter = { showBRouterInstallPrompt = true }
+                    onInstallBRouter = { showBRouterInstallPrompt = true },
+                    onClearRoute = {
+                        // Wipe everything route-derived: the cached
+                        // destination, the saved viewport snapshot,
+                        // and the in-memory route. Without clearing
+                        // userDestination here a stale "navigate to
+                        // station X" would still surface the moment
+                        // the user opened the map, even though X is
+                        // no longer on any route.
+                        userDestination = null
+                        savedMapCenter = null
+                        savedMapZoom = null
+                        importViewModel.clearRoute()
+                    },
                 )
             }
             composable("map") {

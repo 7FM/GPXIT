@@ -35,7 +35,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +65,7 @@ fun ImportScreen(
     downloadState: dev.gpxit.app.GpxitDownloadState = dev.gpxit.app.GpxitDownloadState(),
     brouterInstalled: Boolean = true,
     onInstallBRouter: () -> Unit = {},
+    onClearRoute: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -73,6 +76,19 @@ fun ImportScreen(
     ) { uri: Uri? ->
         uri?.let { viewModel.importGpx(it) }
     }
+    // MIME types accepted by the SAF picker — same list as the
+    // launcher invocation in both the empty-state "Import GPX" and
+    // the loaded-state "Replace GPX" buttons. Pulled out so the two
+    // call sites don't drift.
+    val gpxPickerMimeTypes = remember {
+        arrayOf(
+            "application/gpx+xml",
+            "application/octet-stream",
+            "text/xml",
+            "*/*",
+        )
+    }
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     val loaded = routeInfo != null && !uiState.isLoading
     val c = if (dev.gpxit.app.ui.theme.LocalIsDark.current) DarkPalette else LightPalette
@@ -135,6 +151,8 @@ fun ImportScreen(
                         routeInfo = routeInfo!!,
                         uiState = uiState,
                         onOpenMap = onNavigateToMap,
+                        onReplace = { launcher.launch(gpxPickerMimeTypes) },
+                        onDelete = { showClearConfirm = true },
                     )
                 } else {
                     EmptyCard(
@@ -180,18 +198,17 @@ fun ImportScreen(
                             color = c.inkSoft,
                         )
                     }
+                    OutlinePillButton(
+                        text = "Replace GPX",
+                        icon = DesignIcons.Plus,
+                        onClick = { launcher.launch(gpxPickerMimeTypes) },
+                        enabled = !uiState.isLoading,
+                    )
                 } else {
                     PeachButton(
                         text = "Import GPX File",
                         icon = DesignIcons.Plus,
-                        onClick = {
-                            launcher.launch(arrayOf(
-                                "application/gpx+xml",
-                                "application/octet-stream",
-                                "text/xml",
-                                "*/*"
-                            ))
-                        },
+                        onClick = { launcher.launch(gpxPickerMimeTypes) },
                         enabled = !uiState.isLoading,
                         large = true,
                     )
@@ -199,7 +216,46 @@ fun ImportScreen(
             }
         }
     }
+    if (showClearConfirm) {
+        ClearRouteDialog(
+            onConfirm = {
+                showClearConfirm = false
+                onClearRoute()
+            },
+            onDismiss = { showClearConfirm = false },
+        )
     }
+    }
+}
+
+@Composable
+private fun ClearRouteDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val c = LocalHomePalette.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onConfirm) {
+                Text("Delete", color = c.accentDark, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cancel", color = c.inkSoft)
+            }
+        },
+        title = { Text("Delete the imported route?", color = c.ink) },
+        text = {
+            Text(
+                text = "The GPX, its precomputed stations, route POIs and any saved destination will be removed.",
+                color = c.inkSoft,
+                fontSize = 13.sp,
+            )
+        },
+        containerColor = c.bg,
+    )
 }
 
 @Composable
@@ -331,12 +387,15 @@ private fun LoadedCard(
     routeInfo: dev.gpxit.app.domain.RouteInfo,
     uiState: ImportUiState,
     onOpenMap: () -> Unit,
+    onReplace: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val c = LocalHomePalette.current
     val (from, to) = remember(routeInfo.name) { splitRouteName(routeInfo.name) }
     val (climbM, descentM) = remember(routeInfo.points) {
         routeClimbDescentMeters(routeInfo.points)
     }
+    var menuOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -399,6 +458,64 @@ private fun LoadedCard(
                         letterSpacing = (-0.3).sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            // Overflow menu — sits where IconMenu lives in the
+            // handoff. Hosts the Replace / Delete actions so the
+            // card itself stays one big "tap to open the map" hit
+            // target. Anchored as a Box so the dropdown opens
+            // below it instead of from the screen corner.
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .clickable { menuOpen = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = DesignIcons.Menu,
+                        contentDescription = "Route actions",
+                        tint = c.cocoaInk,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    containerColor = c.bg,
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Replace GPX", color = c.ink) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = DesignIcons.Plus,
+                                contentDescription = null,
+                                tint = c.ink,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onReplace()
+                        },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Delete route", color = c.accentDark) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = DesignIcons.Trash,
+                                contentDescription = null,
+                                tint = c.accentDark,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        },
                     )
                 }
             }

@@ -36,50 +36,73 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Receive shared GPX files -->
+            <!-- Receive shared GPX files. Komoot / Strava / Garmin
+                 share with the official application/gpx+xml MIME;
+                 generic share sheets often hand us octet-stream or
+                 a text/xml fallback when the source app doesn't tag
+                 the type. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/x-gpx+xml" />
+                <data android:mimeType="application/gpx" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="text/xml" />
+                <data android:mimeType="application/xml" />
             </intent-filter>
+
+            <!-- Open GPX files by MIME — broad list deliberately
+                 mirrors Komoot's manifest (de.komoot.android,
+                 TrackImportActivity). On Android the MIME for .gpx
+                 isn't shipped in the system tables, so file managers
+                 commonly hand the file out as application/octet-
+                 stream or text/xml; without these wildcard-ish MIMEs
+                 we never appear in the chooser. The trade-off is
+                 that GPXIT will be offered as one of the apps for
+                 arbitrary binary / XML files — same trade-off Komoot
+                 makes. The pin is the .gpx pathPattern (next filter)
+                 which keeps us from being the *default*. -->
             <intent-filter>
-                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/gpx+xml" />
+                <data android:mimeType="application/x-gpx+xml" />
+                <data android:mimeType="application/gpx" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="text/xml" />
+                <data android:mimeType="text/plain" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
 
-            <!-- Open GPX files: the easy path when a file manager or
-                 download already knows the proper MIME type. -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="application/gpx+xml" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="application/x-gpx+xml" />
-            </intent-filter>
-
-            <!-- Open GPX files by extension — covers browsers and file
-                 managers that hand us application/octet-stream or a
-                 wildcard type but get the path right. Multiple
-                 pathPatterns because Android's `.*` matching chokes on
-                 paths with extra dots (e.g. "tour.2026-04.gpx"). -->
+            <!-- Open GPX files by extension — covers browsers, mail
+                 attachments, and file managers that hand us
+                 application/octet-stream or a wildcard type but get
+                 the path right. Multiple pathPatterns because
+                 Android's `.*` matching chokes on paths with extra
+                 dots (e.g. "tour.2026-04.gpx"). Both lower- and
+                 upper-case extensions because some exporters write
+                 .GPX. http/https schemes catch direct downloads from
+                 a browser address bar. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" />
                 <data android:scheme="content" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
                 <data android:host="*" />
                 <data android:mimeType="*/*" />
                 <data android:pathPattern=".*\\.gpx" />
                 <data android:pathPattern=".*\\..*\\.gpx" />
                 <data android:pathPattern=".*\\..*\\..*\\.gpx" />
                 <data android:pathPattern=".*\\..*\\..*\\..*\\.gpx" />
+                <data android:pathPattern=".*\\.GPX" />
+                <data android:pathPattern=".*\\..*\\.GPX" />
+                <data android:pathPattern=".*\\..*\\..*\\.GPX" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.GPX" />
             </intent-filter>
         </activity>
 

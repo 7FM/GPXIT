@@ -9,6 +9,32 @@ import kotlin.math.*
 
 object GpxParser {
 
+    /**
+     * Cheap header sniff to fail-fast on non-GPX uploads. The
+     * manifest filter accepts a deliberately broad set of MIME types
+     * (`application/octet-stream`, `text/xml`, `text/plain`, …) so
+     * GPXIT is a candidate in the chooser even when Android can't
+     * map .gpx to a specific MIME — same trade-off Komoot makes. The
+     * downside is that users can pick a random binary or text file
+     * and we'd otherwise plough through the whole thing before the
+     * XML parser bails.
+     *
+     * Returns true if the first 1 KB of the stream contains a `<gpx`
+     * tag (case-insensitive). Anything else — random bytes, an HTML
+     * page, an SVG, a non-GPX XML doc — fails this check. Read what
+     * was peeked from [headBytes].
+     */
+    fun looksLikeGpx(headBytes: ByteArray, length: Int): Boolean {
+        if (length <= 0) return false
+        // Decode as UTF-8 (with replacement chars on invalid bytes)
+        // so binary garbage just doesn't yield "<gpx". A real GPX
+        // file is plain ASCII for at least the XML prolog + root
+        // element opening, so we don't need to worry about other
+        // encodings here.
+        val head = String(headBytes, 0, length, Charsets.UTF_8).lowercase()
+        return head.contains("<gpx")
+    }
+
     fun parse(inputStream: InputStream): RouteInfo {
         val parser = GPXParser()
         val gpx: Gpx = parser.parse(inputStream)

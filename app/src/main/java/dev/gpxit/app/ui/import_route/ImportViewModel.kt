@@ -98,16 +98,52 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Wipe the currently-loaded route from disk and memory, plus any
+     * derived caches (precomputed stations, nearby search results,
+     * route POIs) and the live "take me home" recommendation tied to
+     * it. The home screen falls back to its empty-state card; the
+     * map screen draws nothing until the user imports a new GPX.
+     */
+    fun clearRoute() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { routeStorage.clear() }
+            _routeInfo.value = null
+            _routePois.value = emptyList()
+            _uiState.value = ImportUiState()
+            dev.gpxit.app.data.tracking.TripTrackingService
+                .publishHomeRecommendation(null)
+        }
+    }
+
     fun importGpx(uri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val context = getApplication<Application>()
 
-                // Read raw bytes so we can save them to disk
+                // Sniff the first 1 KB before slurping the whole file
+                // so a wrong-file pick (random binary, HTML page,
+                // non-GPX XML) fails fast instead of being read in
+                // full just to die at the XML parser. The manifest
+                // filter is intentionally loose so .gpx files always
+                // surface in the chooser, which is exactly when this
+                // header check matters most.
                 val bytes = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    val stream = context.contentResolver.openInputStream(uri)
                         ?: throw IllegalArgumentException("Cannot open file")
+                    stream.use { input ->
+                        val buffered = input.buffered()
+                        val headSize = 1024
+                        buffered.mark(headSize + 1)
+                        val head = ByteArray(headSize)
+                        val read = buffered.read(head, 0, headSize).coerceAtLeast(0)
+                        if (!GpxParser.looksLikeGpx(head, read)) {
+                            throw NotAGpxFileException()
+                        }
+                        buffered.reset()
+                        buffered.readBytes()
+                    }
                 }
 
                 val route = withContext(Dispatchers.IO) {
@@ -205,6 +241,11 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
                             "${stations.size} stations, ${pois.size} POIs ready"
                     }
                 )
+            } catch (_: NotAGpxFileException) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "That file doesn't look like a GPX route. Pick a .gpx file."
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -213,6 +254,9 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    /** Thrown by the head sniff in [importGpx] when the file lacks a `<gpx` tag. */
+    private class NotAGpxFileException : RuntimeException()
 }
 
 data class ImportUiState(

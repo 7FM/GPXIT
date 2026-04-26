@@ -160,6 +160,20 @@ object DesignIcons {
         "M 5.5 17 L 10 10 L 15 10 L 18.5 17 M 10 10 L 14 10 M 13 6 H 16 L 15 10",
     )
 
+    /**
+     * IconTrash — wastebasket silhouette: lid bar + pull-tab + bin
+     * body with two interior bars. Stroke-only to match the rest of
+     * the icon set.
+     */
+    val Trash: ImageVector = outlineMulti(
+        "Trash",
+        "M 4 7 H 20",
+        "M 9 7 V 5 A 1 1 0 0 1 10 4 H 14 A 1 1 0 0 1 15 5 V 7",
+        "M 6 7 L 7 20 A 1 1 0 0 0 8 21 H 16 A 1 1 0 0 0 17 20 L 18 7",
+        "M 10 11 V 17",
+        "M 14 11 V 17",
+    )
+
     /** IconMountain — two peaks. */
     val Mountain: ImageVector = outline(
         "Mountain",
