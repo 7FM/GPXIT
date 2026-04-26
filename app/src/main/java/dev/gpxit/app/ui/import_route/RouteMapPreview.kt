@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.gpxit.app.data.OsmTileSource
 import dev.gpxit.app.domain.RouteInfo
-import dev.gpxit.app.ui.theme.LocalMapPalette
+import dev.gpxit.app.ui.theme.RoutePolylineColor
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -42,8 +42,10 @@ fun RouteMapPreview(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val palette = LocalMapPalette.current
-    val routeColorArgb = palette.accent.toArgb()
+    // Match the polyline colour the full map uses so the preview reads as
+    // "the route on the map, just smaller". Sourced from the shared
+    // RoutePolylineColor constant in theme/MapPalette.kt.
+    val routeColorArgb = RoutePolylineColor.toArgb()
     val strokeWidthPx = with(density) { 4.dp.toPx() }
     val edgePaddingPx = with(density) { 16.dp.toPx().toInt() }
 

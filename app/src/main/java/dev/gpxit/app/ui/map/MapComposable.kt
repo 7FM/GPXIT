@@ -18,8 +18,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.toArgb
 import dev.gpxit.app.domain.RouteInfo
 import dev.gpxit.app.domain.StationCandidate
+import dev.gpxit.app.ui.theme.RoutePolylineColor
 import org.osmdroid.config.Configuration
 import dev.gpxit.app.data.OsmTileSource
 import org.osmdroid.util.BoundingBox
@@ -1086,10 +1088,12 @@ fun OsmMapView(
             }
             contentOverlays.clear()
 
-            // Draw route polyline
+            // Draw route polyline. Colour comes from the shared
+            // RoutePolylineColor constant in theme/MapPalette.kt so the
+            // home-screen preview thumbnail and this full map can't drift.
             if (routeInfo != null && routeInfo.points.isNotEmpty()) {
                 val polyline = Polyline().apply {
-                    getOutlinePaint().color = Color.rgb(66, 133, 244)
+                    getOutlinePaint().color = RoutePolylineColor.toArgb()
                     getOutlinePaint().strokeWidth = 8f
                     setPoints(routeInfo.points.map { GeoPoint(it.lat, it.lon) })
                 }

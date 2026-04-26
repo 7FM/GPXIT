@@ -88,6 +88,14 @@ val MapPaletteDefault: MapPalette = MapPaletteLight
 val LocalMapPalette = staticCompositionLocalOf { MapPaletteLight }
 
 /**
+ * Single source of truth for the GPX route polyline colour. Used both by the
+ * full map (`MapComposable`) and the home-screen "Active route" preview
+ * thumbnail (`RouteMapPreview`) so the two never drift apart. Pinned to the
+ * Material blue the main map has always used (`#4285F4`).
+ */
+val RoutePolylineColor: Color = Color(0xFF4285F4)
+
+/**
  * Picks the right palette for the resolved theme (system / forced
  * light / forced dark). Reads [LocalIsDark] which `GpxitTheme`
  * provides at the root, so this honours the user's `ThemeMode`
