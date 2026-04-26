@@ -4,125 +4,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import dev.gpxit.app.domain.RoutePoint
-
-/**
- * Mini route polyline drawn into a fixed-size canvas. The route is
- * projected via an equirectangular approximation (same as the rest of
- * the app's small-scale geometry) and centred with a uniform scale so
- * the aspect ratio of the actual route is preserved. Endpoints are
- * marked: the start with a [Palette.accent] dot, the end with a
- * cocoa-coloured pin.
- */
-@Composable
-fun RouteThumb(
-    points: List<RoutePoint>,
-    routeColor: Color,
-    backgroundColor: Color,
-    modifier: Modifier = Modifier,
-    inset: Float = 12f,
-) {
-    val palette = LocalHomePalette.current
-    // Pre-compute the bounding box once per points list.
-    val bbox = remember(points) {
-        if (points.isEmpty()) null
-        else {
-            var minLat = Double.POSITIVE_INFINITY
-            var maxLat = Double.NEGATIVE_INFINITY
-            var minLon = Double.POSITIVE_INFINITY
-            var maxLon = Double.NEGATIVE_INFINITY
-            for (p in points) {
-                if (p.lat < minLat) minLat = p.lat
-                if (p.lat > maxLat) maxLat = p.lat
-                if (p.lon < minLon) minLon = p.lon
-                if (p.lon > maxLon) maxLon = p.lon
-            }
-            Bbox(minLat, maxLat, minLon, maxLon)
-        }
-    }
-
-    Canvas(modifier = modifier) {
-        drawRect(backgroundColor)
-        val bb = bbox ?: return@Canvas
-        if (points.size < 2) return@Canvas
-
-        val w = size.width
-        val h = size.height
-        val canvasW = w - 2 * inset
-        val canvasH = h - 2 * inset
-
-        // Equirectangular: shrink longitude by cos(meanLat) so the
-        // route doesn't look stretched east-west at higher latitudes.
-        val meanLatRad = Math.toRadians((bb.minLat + bb.maxLat) / 2.0)
-        val lonScale = kotlin.math.cos(meanLatRad).coerceAtLeast(0.01)
-        val routeW = ((bb.maxLon - bb.minLon) * lonScale).toFloat().coerceAtLeast(1e-6f)
-        val routeH = (bb.maxLat - bb.minLat).toFloat().coerceAtLeast(1e-6f)
-        val scale = kotlin.math.min(canvasW / routeW, canvasH / routeH)
-
-        val xPad = (canvasW - routeW * scale) / 2f + inset
-        val yPad = (canvasH - routeH * scale) / 2f + inset
-
-        fun project(p: RoutePoint): Offset {
-            val x = ((p.lon - bb.minLon) * lonScale).toFloat() * scale + xPad
-            // Latitude grows north; canvas Y grows downward → flip.
-            val y = (bb.maxLat - p.lat).toFloat() * scale + yPad
-            return Offset(x, y)
-        }
-
-        // Down-sample to ~120 segments so we're not building a
-        // thousands-element Path on every recomposition.
-        val maxSegments = 120
-        val step = kotlin.math.max(1, points.size / maxSegments)
-        val path = Path()
-        var first = true
-        var i = 0
-        while (i < points.size) {
-            val o = project(points[i])
-            if (first) {
-                path.moveTo(o.x, o.y)
-                first = false
-            } else {
-                path.lineTo(o.x, o.y)
-            }
-            i += step
-        }
-        // Make sure the very last point is included.
-        val end = project(points.last())
-        path.lineTo(end.x, end.y)
-
-        // Halo + main stroke for the polyline.
-        drawPath(
-            path = path,
-            color = routeColor.copy(alpha = 0.18f),
-            style = Stroke(width = 8f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-        drawPath(
-            path = path,
-            color = routeColor,
-            style = Stroke(width = 3.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-
-        // Endpoints — peach start dot, dark end pin. Use palette so
-        // both colours track the current theme.
-        val startO = project(points.first())
-        val endRingColor = if (palette.isDark) palette.bgWarm else Color.White
-        drawCircle(endRingColor, radius = 6f, center = startO)
-        drawCircle(palette.accent, radius = 5f, center = startO)
-        drawCircle(endRingColor, radius = 6f, center = end)
-        drawCircle(
-            if (palette.isDark) palette.ink else palette.cocoa,
-            radius = 5f,
-            center = end,
-        )
-        drawCircle(endRingColor, radius = 1.6f, center = end)
-    }
-}
 
 /**
  * Tiny elevation sparkline. Samples [steps] points evenly along the
@@ -180,13 +67,6 @@ fun ElevationSpark(
         )
     }
 }
-
-private data class Bbox(
-    val minLat: Double,
-    val maxLat: Double,
-    val minLon: Double,
-    val maxLon: Double,
-)
 
 /**
  * Palette tokens from the GPXIT Home handoff, provided as a data

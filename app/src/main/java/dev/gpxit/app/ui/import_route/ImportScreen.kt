@@ -521,8 +521,17 @@ private fun LoadedCard(
             }
         }
 
-        // Route preview thumb. Tapping it (or anywhere on the card)
-        // opens the map — same as the dedicated "View on Map" button.
+        // Route preview thumb. Renders an actual osmdroid MapView
+        // with the route polyline on top so the user gets real
+        // surroundings (rivers, roads, city footprints) instead of
+        // the flat-coloured vector preview the design originally
+        // showed. The cocoa background still bleeds through while
+        // tiles are loading, giving a nicer transition than the
+        // default light-grey "missing tile" colour. Tapping the
+        // thumb opens the map — the parent Column's `clickable` is
+        // shadowed by the MapView's own touch handling, so we
+        // route the tap through a transparent click overlay that
+        // mirrors `onOpenMap` directly.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -530,11 +539,14 @@ private fun LoadedCard(
                 .clip(RoundedCornerShape(14.dp))
                 .background(c.cocoaThumbBg)
         ) {
-            RouteThumb(
-                points = routeInfo.points,
-                routeColor = c.accent,
-                backgroundColor = c.cocoaThumbBg,
+            RouteMapPreview(
+                routeInfo = routeInfo,
                 modifier = Modifier.fillMaxSize(),
+            )
+            Spacer(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(onClick = onOpenMap)
             )
         }
 
