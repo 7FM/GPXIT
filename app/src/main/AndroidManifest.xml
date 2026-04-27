@@ -52,6 +52,34 @@
                 <data android:mimeType="application/xml" />
             </intent-filter>
 
+            <!-- Receive a shared Komoot URL as plain text. Komoot's own
+                 "Share tour" action emits text/plain with the public
+                 link in EXTRA_TEXT; MainActivity parses the URL and
+                 dispatches to the Komoot import path. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!-- Open a Komoot tour deep link. Tapping a komoot.com /
+                 komoot.de link in browser, chat, or email goes through
+                 the Android chooser and lands here so MainActivity can
+                 fetch the tour via the Komoot API. autoVerify=false
+                 because we don't control the assetlinks.json on
+                 komoot.com — the chooser dialog is the right UX. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="komoot.com" />
+                <data android:host="www.komoot.com" />
+                <data android:host="komoot.de" />
+                <data android:host="www.komoot.de" />
+            </intent-filter>
+
             <!-- Open GPX files by MIME — broad list deliberately
                  mirrors Komoot's manifest (de.komoot.android,
                  TrackImportActivity). On Android the MIME for .gpx

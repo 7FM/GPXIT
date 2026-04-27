@@ -31,8 +31,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +63,7 @@ fun ImportScreen(
     homeStationName: String?,
     onNavigateToMap: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToKomootBrowse: () -> Unit = {},
     onDownloadOfflineMap: () -> Unit = {},
     downloadState: dev.gpxit.app.GpxitDownloadState = dev.gpxit.app.GpxitDownloadState(),
     brouterInstalled: Boolean = true,
@@ -71,6 +74,11 @@ fun ImportScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val routeInfo by viewModel.routeInfo.collectAsState()
+    var showKomootAuthPrompt by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.needsKomootAuth) {
+        if (uiState.needsKomootAuth) showKomootAuthPrompt = true
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -153,6 +161,7 @@ fun ImportScreen(
                         uiState = uiState,
                         onOpenMap = onNavigateToMap,
                         onReplace = { launcher.launch(gpxPickerMimeTypes) },
+                        onBrowseKomoot = onNavigateToKomootBrowse,
                         onDelete = { showClearConfirm = true },
                         onReloadStations = onReloadStations,
                     )
@@ -201,20 +210,54 @@ fun ImportScreen(
                             color = c.inkSoft,
                         )
                     }
-                    OutlinePillButton(
-                        text = "Replace GPX",
-                        icon = DesignIcons.Plus,
-                        onClick = { launcher.launch(gpxPickerMimeTypes) },
-                        enabled = !uiState.isLoading,
+                    Text(
+                        text = "Replace with…",
+                        color = c.inkSoft,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.4.sp,
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinePillButton(
+                            text = "GPX file",
+                            icon = DesignIcons.Plus,
+                            onClick = { launcher.launch(gpxPickerMimeTypes) },
+                            enabled = !uiState.isLoading,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinePillButton(
+                            text = "Komoot",
+                            icon = DesignIcons.Route,
+                            onClick = onNavigateToKomootBrowse,
+                            enabled = !uiState.isLoading,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 } else {
-                    PeachButton(
-                        text = "Import GPX File",
-                        icon = DesignIcons.Plus,
-                        onClick = { launcher.launch(gpxPickerMimeTypes) },
-                        enabled = !uiState.isLoading,
-                        large = true,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PeachButton(
+                            text = "GPX file",
+                            icon = DesignIcons.Plus,
+                            onClick = { launcher.launch(gpxPickerMimeTypes) },
+                            enabled = !uiState.isLoading,
+                            large = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        PeachButton(
+                            text = "Komoot",
+                            icon = DesignIcons.Route,
+                            onClick = onNavigateToKomootBrowse,
+                            enabled = !uiState.isLoading,
+                            large = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -226,6 +269,35 @@ fun ImportScreen(
                 onClearRoute()
             },
             onDismiss = { showClearConfirm = false },
+        )
+    }
+    if (showKomootAuthPrompt) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showKomootAuthPrompt = false
+                viewModel.consumeNeedsKomootAuth()
+            },
+            title = { Text("Sign in to Komoot?") },
+            text = {
+                Text(
+                    "This tour requires Komoot credentials. Open Settings " +
+                        "to sign in, then re-open the link.",
+                    fontSize = 13.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showKomootAuthPrompt = false
+                    viewModel.consumeNeedsKomootAuth()
+                    onNavigateToSettings()
+                }) { Text("Open Settings", fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showKomootAuthPrompt = false
+                    viewModel.consumeNeedsKomootAuth()
+                }) { Text("Not now") }
+            },
         )
     }
     }
@@ -391,6 +463,7 @@ private fun LoadedCard(
     uiState: ImportUiState,
     onOpenMap: () -> Unit,
     onReplace: () -> Unit,
+    onBrowseKomoot: () -> Unit,
     onDelete: () -> Unit,
     onReloadStations: () -> Unit,
 ) {
@@ -491,21 +564,6 @@ private fun LoadedCard(
                     onDismissRequest = { menuOpen = false },
                     containerColor = c.bg,
                 ) {
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Replace GPX", color = c.ink) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = DesignIcons.Plus,
-                                contentDescription = null,
-                                tint = c.ink,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        },
-                        onClick = {
-                            menuOpen = false
-                            onReplace()
-                        },
-                    )
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Reload stations", color = c.ink) },
                         leadingIcon = {
@@ -826,12 +884,13 @@ private fun PeachButton(
     enabled: Boolean = true,
     large: Boolean = false,
     icon: ImageVector? = null,
+    modifier: Modifier = Modifier,
 ) {
     val c = LocalHomePalette.current
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(if (large) 56.dp else 48.dp),
         shape = CircleShape,
@@ -856,6 +915,9 @@ private fun PeachButton(
             fontSize = if (large) 17.sp else 15.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = (-0.1).sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -867,6 +929,7 @@ private fun OutlinePillButton(
     enabled: Boolean = true,
     small: Boolean = false,
     icon: ImageVector? = null,
+    modifier: Modifier = Modifier,
 ) {
     val c = LocalHomePalette.current
     // Dark-mode border is a thin white line at low alpha; light-mode
@@ -875,7 +938,7 @@ private fun OutlinePillButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = if (small) Modifier.height(36.dp) else Modifier
+        modifier = if (small) modifier.height(36.dp) else modifier
             .fillMaxWidth()
             .height(48.dp),
         shape = CircleShape,
@@ -899,6 +962,9 @@ private fun OutlinePillButton(
             fontSize = if (small) 13.sp else 15.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = (-0.1).sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -421,6 +421,7 @@ fun GpxitApp(
                     homeStationName = prefs.homeStationName,
                     onNavigateToMap = { navController.navigate("map") },
                     onNavigateToSettings = { navController.navigate("settings") },
+                    onNavigateToKomootBrowse = { navController.navigate("komoot_browse") },
                     onDownloadOfflineMap = { scope.launch { triggerDownload(importRouteInfo, mapTileDownloader) { downloadState = it } } },
                     downloadState = downloadState,
                     brouterInstalled = brouterInstalled,
@@ -727,7 +728,24 @@ fun GpxitApp(
                     onSetTripTrackingEnabled = { settingsViewModel.setTripTrackingEnabled(it) },
                     onSetThemeMode = { settingsViewModel.setThemeMode(it) },
                     stationSuggestions = suggestions,
+                    komootStateFlow = settingsViewModel.komootState,
+                    onKomootEmailChange = settingsViewModel::setKomootEmail,
+                    onKomootPasswordChange = settingsViewModel::setKomootPassword,
+                    onKomootUserIdChange = settingsViewModel::setKomootUserId,
+                    onKomootSave = settingsViewModel::saveKomootCredentials,
+                    onKomootTest = settingsViewModel::testKomootConnection,
+                    onKomootClear = settingsViewModel::clearKomootCredentials,
                     onBack = { navController.popBackStack() }
+                )
+            }
+            composable("komoot_browse") {
+                dev.gpxit.app.ui.komoot.KomootBrowseScreen(
+                    onBack = { navController.popBackStack() },
+                    onPickTour = { ref ->
+                        importViewModel.importKomoot(ref)
+                        navController.popBackStack()
+                    },
+                    onNavigateToSettings = { navController.navigate("settings") },
                 )
             }
         }

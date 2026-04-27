@@ -3,6 +3,9 @@ package dev.gpxit.app.ui.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.gpxit.app.data.komoot.KomootApi
+import dev.gpxit.app.data.komoot.KomootCredentialStore
+import dev.gpxit.app.data.komoot.KomootError
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
 import kotlinx.coroutines.Job
@@ -17,6 +20,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val prefsRepository = PrefsRepository(application)
     private val transitRepository = TransitRepository()
+    private val komootCredentialStore = KomootCredentialStore(application)
+    private val komootApi = KomootApi(userAgent = "GPXIT/0.1.0 (+https://github.com/7FM/GPXIT)")
+
+    private val _komootState = MutableStateFlow(KomootSettingsState())
+    val komootState: StateFlow<KomootSettingsState> = _komootState
+
+    init {
+        // Pull existing creds (if any) into the editable fields so the
+        // user sees what's stored — easier to re-test or rotate.
+        viewModelScope.launch {
+            val existing = komootCredentialStore.load()
+            if (existing != null) {
+                _komootState.value = _komootState.value.copy(
+                    email = existing.email,
+                    password = existing.password,
+                    userId = existing.userId.orEmpty(),
+                    isConfigured = true,
+                )
+            }
+        }
+    }
 
     val preferences: StateFlow<PrefsRepository.UserPreferences> = prefsRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PrefsRepository.UserPreferences())
@@ -124,4 +148,156 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             prefsRepository.setConnectionProducts(updated)
         }
     }
+
+    fun setKomootEmail(value: String) {
+        _komootState.value = _komootState.value.copy(email = value, statusMessage = null, isError = false)
+    }
+
+    fun setKomootPassword(value: String) {
+        _komootState.value = _komootState.value.copy(password = value, statusMessage = null, isError = false)
+    }
+
+    /**
+     * Accepts either a bare numeric ID or a `komoot.com/user/<id>` URL
+     * (handy when the user just paste-and-grabs from their browser).
+     * Garbage input is stored verbatim so the user sees their typo;
+     * Save / Test will reject it.
+     */
+    fun setKomootUserId(value: String) {
+        val cleaned = dev.gpxit.app.data.komoot.KomootUrlParser.parseUserId(value) ?: value
+        _komootState.value = _komootState.value.copy(
+            userId = cleaned, statusMessage = null, isError = false,
+        )
+    }
+
+    /**
+     * Persist the edited credentials. Empty values are rejected up front
+     * so a stray Save tap doesn't wipe a working configuration.
+     */
+    fun saveKomootCredentials() {
+        val s = _komootState.value
+        if (s.email.isBlank() || s.password.isBlank()) {
+            _komootState.value = s.copy(
+                statusMessage = "Email and password are both required.",
+                isError = true,
+            )
+            return
+        }
+        val userId = s.userId.trim().takeIf { it.isNotBlank() }
+        if (userId != null && !userId.all { it.isDigit() }) {
+            _komootState.value = s.copy(
+                statusMessage = "User ID must be numeric (or a komoot.com/user/<id> URL).",
+                isError = true,
+            )
+            return
+        }
+        viewModelScope.launch {
+            _komootState.value = s.copy(isBusy = true, statusMessage = null, isError = false)
+            try {
+                komootCredentialStore.save(s.email.trim(), s.password, userId)
+                _komootState.value = _komootState.value.copy(
+                    isBusy = false,
+                    isConfigured = true,
+                    statusMessage = "Saved.",
+                    isError = false,
+                )
+            } catch (e: Exception) {
+                _komootState.value = _komootState.value.copy(
+                    isBusy = false,
+                    statusMessage = "Couldn't save: ${e.message}",
+                    isError = true,
+                )
+            }
+        }
+    }
+
+    /**
+     * Round-trip the current creds against `users/me` to confirm Komoot
+     * accepts them. Saves them first so the next Komoot import doesn't
+     * silently use stale values.
+     */
+    fun testKomootConnection() {
+        val s = _komootState.value
+        if (s.email.isBlank() || s.password.isBlank()) {
+            _komootState.value = s.copy(
+                statusMessage = "Enter email and password first.",
+                isError = true,
+            )
+            return
+        }
+        val userId = s.userId.trim().takeIf { it.isNotBlank() }
+        if (userId != null && !userId.all { it.isDigit() }) {
+            _komootState.value = s.copy(
+                statusMessage = "User ID must be numeric (or a komoot.com/user/<id> URL).",
+                isError = true,
+            )
+            return
+        }
+        viewModelScope.launch {
+            _komootState.value = s.copy(isBusy = true, statusMessage = "Testing…", isError = false)
+            try {
+                komootCredentialStore.save(s.email.trim(), s.password, userId)
+                val creds = komootCredentialStore.load() ?: run {
+                    _komootState.value = _komootState.value.copy(
+                        isBusy = false,
+                        statusMessage = "Couldn't load saved credentials.",
+                        isError = true,
+                    )
+                    return@launch
+                }
+                val result = komootApi.ping(creds)
+                if (result.detectedUserId != null && userId == null) {
+                    // Persist what /account/v1/account told us so
+                    // Browse becomes available without the user
+                    // touching the User ID field.
+                    komootCredentialStore.save(
+                        creds.email, creds.password, result.detectedUserId,
+                    )
+                    _komootState.value = _komootState.value.copy(
+                        isBusy = false,
+                        isConfigured = true,
+                        userId = result.detectedUserId,
+                        statusMessage = result.message,
+                        isError = false,
+                    )
+                } else {
+                    _komootState.value = _komootState.value.copy(
+                        isBusy = false,
+                        isConfigured = true,
+                        statusMessage = result.message,
+                        isError = false,
+                    )
+                }
+            } catch (e: KomootError.Unauthorized) {
+                _komootState.value = _komootState.value.copy(
+                    isBusy = false,
+                    statusMessage = "Komoot rejected those credentials.",
+                    isError = true,
+                )
+            } catch (e: Exception) {
+                _komootState.value = _komootState.value.copy(
+                    isBusy = false,
+                    statusMessage = "Couldn't reach Komoot: ${e.message}",
+                    isError = true,
+                )
+            }
+        }
+    }
+
+    fun clearKomootCredentials() {
+        viewModelScope.launch {
+            komootCredentialStore.clear()
+            _komootState.value = KomootSettingsState()
+        }
+    }
 }
+
+data class KomootSettingsState(
+    val email: String = "",
+    val password: String = "",
+    val userId: String = "",
+    val isConfigured: Boolean = false,
+    val isBusy: Boolean = false,
+    val statusMessage: String? = null,
+    val isError: Boolean = false,
+)

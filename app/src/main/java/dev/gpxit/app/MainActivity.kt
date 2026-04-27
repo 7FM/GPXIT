@@ -8,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import dev.gpxit.app.data.komoot.KomootUrlParser
 import dev.gpxit.app.ui.import_route.ImportViewModel
 
 // Scrim colours for the system bars, chosen to match the Import /
@@ -59,6 +60,18 @@ class MainActivity : ComponentActivity() {
     private fun handleIncomingIntent(intent: Intent) {
         when (intent.action) {
             Intent.ACTION_SEND -> {
+                // Sharing a Komoot link from the Komoot app lands as
+                // text/plain with the URL in EXTRA_TEXT. Try that path
+                // first; fall through to the GPX-bytes path if it
+                // doesn't look like a Komoot URL.
+                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (sharedText != null) {
+                    val ref = KomootUrlParser.parse(sharedText)
+                    if (ref != null) {
+                        importViewModel.importKomoot(ref)
+                        return
+                    }
+                }
                 val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
                 } else {
@@ -67,9 +80,24 @@ class MainActivity : ComponentActivity() {
                 uri?.let { importViewModel.importGpx(it) }
             }
             Intent.ACTION_VIEW -> {
-                intent.data?.let { uri ->
-                    importViewModel.importGpx(uri)
+                val uri = intent.data ?: return
+                val host = uri.host?.lowercase()
+                if (host != null && KomootUrlParser.isKomootHost(host)) {
+                    val ref = KomootUrlParser.parse(uri.toString())
+                    if (ref != null) {
+                        importViewModel.importKomoot(ref)
+                        return
+                    }
+                    // Komoot host but unrecognised path — tell the user;
+                    // they can paste the URL manually if needed.
+                    android.widget.Toast.makeText(
+                        this,
+                        "Couldn't read this Komoot link",
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                    return
                 }
+                importViewModel.importGpx(uri)
             }
         }
     }

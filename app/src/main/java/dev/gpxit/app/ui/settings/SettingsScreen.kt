@@ -91,10 +91,18 @@ fun SettingsScreen(
     onSetTripTrackingEnabled: (Boolean) -> Unit,
     onSetThemeMode: (dev.gpxit.app.ui.theme.ThemeMode) -> Unit,
     stationSuggestions: List<TransitRepository.StationSuggestion>,
+    komootStateFlow: StateFlow<KomootSettingsState>,
+    onKomootEmailChange: (String) -> Unit,
+    onKomootPasswordChange: (String) -> Unit,
+    onKomootUserIdChange: (String) -> Unit,
+    onKomootSave: () -> Unit,
+    onKomootTest: () -> Unit,
+    onKomootClear: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val prefs by prefsFlow.collectAsState(initial = PrefsRepository.UserPreferences())
+    val komootState by komootStateFlow.collectAsState()
     var stationQuery by remember { mutableStateOf("") }
     var openGroup by remember { mutableStateOf<String?>("stations") }
 
@@ -354,6 +362,32 @@ fun SettingsScreen(
                             unit = " min",
                         )
                     }
+                }
+
+                // Komoot account
+                AccordionGroup(
+                    id = "komoot",
+                    title = "Komoot account",
+                    summary = if (komootState.isConfigured) {
+                        "Signed in as ${komootState.email.ifBlank { "(saved)" }}"
+                    } else {
+                        "Not signed in"
+                    },
+                    icon = DesignIcons.Route,
+                    isOpen = openGroup == "komoot",
+                    onToggle = {
+                        openGroup = if (openGroup == "komoot") null else "komoot"
+                    },
+                ) {
+                    KomootAccountSection(
+                        state = komootState,
+                        onEmailChange = onKomootEmailChange,
+                        onPasswordChange = onKomootPasswordChange,
+                        onUserIdChange = onKomootUserIdChange,
+                        onSave = onKomootSave,
+                        onTest = onKomootTest,
+                        onClear = onKomootClear,
+                    )
                 }
 
                 // Map & data
@@ -846,4 +880,149 @@ private fun poiSummary(lastUpdateMs: Long, available: Boolean): String {
         else -> "$days days ago"
     }
     return "Updated $rel"
+}
+
+@Composable
+private fun KomootAccountSection(
+    state: KomootSettingsState,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onUserIdChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onTest: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val palette = LocalMapPalette.current
+    var passwordVisible by remember { mutableStateOf(false) }
+    Column {
+        Text(
+            text = "Used to import Komoot tour links and browse your saved tours. " +
+                "Stored encrypted on this device — do not enable on shared phones.",
+            color = palette.inkSoft,
+            fontSize = 11.sp,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        OutlinedTextField(
+            value = state.email,
+            onValueChange = onEmailChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Email") },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
+                autoCorrectEnabled = false,
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+            ),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = state.password,
+            onValueChange = onPasswordChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Password") },
+            visualTransformation = if (passwordVisible) {
+                androidx.compose.ui.text.input.VisualTransformation.None
+            } else {
+                androidx.compose.ui.text.input.PasswordVisualTransformation()
+            },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                autoCorrectEnabled = false,
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+            ),
+            trailingIcon = {
+                Text(
+                    text = if (passwordVisible) "Hide" else "Show",
+                    color = palette.accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { passwordVisible = !passwordVisible }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = state.userId,
+            onValueChange = onUserIdChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("User ID (for Browse)") },
+            placeholder = { Text("e.g. 12345678 or komoot.com/user/12345678") },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                autoCorrectEnabled = false,
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
+            ),
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Find it in the Komoot app: Settings → Profile information → " +
+                "Additional information → Komoot ID. Or in your profile URL " +
+                "(komoot.com/user/<id>) when signed in. Needed only for the " +
+                "'Browse my tours' picker — share-link imports work without it.",
+            color = palette.inkSoft,
+            fontSize = 11.sp,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = onTest,
+                enabled = !state.isBusy,
+                shape = RoundedCornerShape(999.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent,
+                ),
+                modifier = Modifier.weight(1f).height(40.dp),
+            ) {
+                Text(
+                    if (state.isBusy) "Working…" else "Test connection",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Button(
+                onClick = onSave,
+                enabled = !state.isBusy,
+                shape = RoundedCornerShape(999.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.surfaceMuted,
+                    contentColor = palette.ink,
+                ),
+                modifier = Modifier.height(40.dp),
+            ) {
+                Text("Save", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        if (state.isConfigured) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable(enabled = !state.isBusy, onClick = onClear)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Sign out",
+                    color = Color(0xFFC0392B),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        if (state.statusMessage != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = state.statusMessage,
+                color = if (state.isError) Color(0xFFC0392B) else palette.inkSoft,
+                fontSize = 12.sp,
+            )
+        }
+    }
 }
