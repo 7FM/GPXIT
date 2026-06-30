@@ -22,7 +22,7 @@ coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutin
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 osmdroid = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
 gpx-parser = { group = "com.github.ticofab", name = "android-gpx-parser", version = "2.3.1" }
-public-transport-enabler = { group = "com.github.schildbach", name = "public-transport-enabler", version = "master-SNAPSHOT" }
+public-transport-enabler = { group = "com.github.schildbach", name = "public-transport-enabler", version = "9f93701b5104ea0039641c264089aeb250f6fadf" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version = "21.3.0" }
 
 # Test-only

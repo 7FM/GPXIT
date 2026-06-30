@@ -1,0 +1,11 @@
+New in 0.2.0:
+- Import Komoot tours via share link, paste, or file picker
+- In-app bike navigation powered by BRouter (prompts to install if missing)
+- Live trip notification that follows your progress and shows upcoming exits and the next connection home
+- Elevation profile and elevation-aware cycling time estimates
+- POI layers along the route, including bike repair, from an offline dataset
+- Live delay info and dark map tiles
+- Redesigned Home and Map screens with dark mode
+- Override the recommended destination station
+- Updated to Deutsche Bahn's current API endpoint
+- Station discovery and platform-clustering fixes
