@@ -13,10 +13,10 @@ import dev.gpxit.app.ui.import_route.ImportViewModel
 
 // Scrim colours for the system bars, chosen to match the Import /
 // Settings backgrounds in each theme. The Import screen's background
-// is #FAFAFA in light mode and #131516 in dark mode (from
+// is #FAFBF9 in light mode and #131516 in dark mode (from
 // HomePalette.bg) — same values here so the system bars blend into
 // the page fill.
-private val scrimLight = android.graphics.Color.argb(0xff, 0xFA, 0xFA, 0xFA)
+private val scrimLight = android.graphics.Color.argb(0xff, 0xFA, 0xFB, 0xF9)
 private val scrimDark = android.graphics.Color.argb(0xff, 0x13, 0x15, 0x16)
 
 class MainActivity : ComponentActivity() {

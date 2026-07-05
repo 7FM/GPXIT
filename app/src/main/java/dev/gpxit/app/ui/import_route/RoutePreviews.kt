@@ -104,27 +104,27 @@ internal data class HomePalette(
 
 internal val LightPalette = HomePalette(
     isDark = false,
-    accent = Color(0xFFF3B4A0),
-    accentDark = Color(0xFFE99A80),
-    accentInk = Color(0xFF3D2A24),
-    accentDeep = Color(0xFFF3B4A0),
-    accentDeepInk = Color(0xFF3D2A24),
-    cocoa = Color(0xFF3D3230),
-    cocoaInk = Color(0xFFF2E9E2),
-    cocoaInkSoft = Color(0xFFB8A8A2),
-    bg = Color(0xFFFAFAFA),
-    bgWarm = Color(0xFFF5F1EC),
+    accent = Color(0xFF2E9E4A),        // brand green (matches Map UI route)
+    accentDark = Color(0xFF26833D),    // darker green for text / progress
+    accentInk = Color(0xFF0E2914),     // dark-green ink
+    accentDeep = Color(0xFF2E9E4A),    // primary button fill (green)
+    accentDeepInk = Color(0xFFFFFFFF), // white ink on green
+    cocoa = Color(0xFF213029),         // deep green-charcoal card
+    cocoaInk = Color(0xFFEAF1EC),
+    cocoaInkSoft = Color(0xFF9DB3A5),
+    bg = Color(0xFFFAFBF9),
+    bgWarm = Color(0xFFEFF3ED),        // faint green-tinted cream
     surface = Color(0xFFFFFFFF),
     ink = Color(0xFF1A1A1A),
-    inkSoft = Color(0xFF6B6560),
-    cocoaThumbBg = Color(0xFF2A2220),
-    emptyCardBg = Color(0xFFF5F1EC),
+    inkSoft = Color(0xFF616560),
+    cocoaThumbBg = Color(0xFF1B2721),  // route-thumb bg on the loaded card
+    emptyCardBg = Color(0xFFEEF4EC),
     emptyCardBorder = Color(0x2E000000),
-    emptyIconBg = Color(0xFFF3B4A0),
-    emptyIconInk = Color(0xFF3D2A24),
-    pillBg = Color(0xFFF5F1EC),
-    pillBgMissing = Color(0xFFFADAD3),
-    pillFgMissing = Color(0xFF3D2A24),
+    emptyIconBg = Color(0xFF2E9E4A),
+    emptyIconInk = Color(0xFFFFFFFF),
+    pillBg = Color(0xFFEEF4EC),
+    pillBgMissing = Color(0xFFF7DAD5), // soft coral warn tint
+    pillFgMissing = Color(0xFFC0392B),
     ruleOnCocoa = Color(0x14FFFFFF),
 )
 
