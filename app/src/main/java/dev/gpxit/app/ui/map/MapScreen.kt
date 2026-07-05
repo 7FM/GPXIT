@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import dev.gpxit.app.data.gpx.routeClimbDescentMeters
 import dev.gpxit.app.domain.ConnectionOption
@@ -179,6 +180,10 @@ fun MapScreen(
     // currently-visible stations on-screen above the sheet.
     var peekSheetHeightPx by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var homeCarouselPage by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // Measured height of MapBottomNav — anchors the locate FAB right
+    // above the real nav edge (the 70dp `bottomNavPx` estimate below
+    // is ~14dp short of the nav's true 84dp+inset height).
+    var measuredNavHeightPx by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var fitStationsRequest by remember { mutableStateOf<FitStationsRequest?>(null) }
 
     // Right-rail control stack width (zoom pill + nearby square +
@@ -557,11 +562,16 @@ fun MapScreen(
                         GlassIcon(DesignIcons.Search, size = 20.dp)
                     }
                 }
-                if (nearbyStations.isNotEmpty()) {
-                    SquareGlassButton(
-                        onClick = onClearNearbyStations,
-                    ) {
-                        Text("\u2715", color = palette.ink)
+                // Clear-results button. Its 44dp slot is always
+                // reserved so toggling visibility never re-centres
+                // the rail and shifts the zoom pill / search button.
+                Box(modifier = Modifier.size(44.dp)) {
+                    if (nearbyStations.isNotEmpty()) {
+                        SquareGlassButton(
+                            onClick = onClearNearbyStations,
+                        ) {
+                            Text("\u2715", color = palette.ink)
+                        }
                     }
                 }
             }
@@ -587,35 +597,41 @@ fun MapScreen(
                 )
             }
 
-            // ── Bottom stack: locate FAB, then peek sheet, then nav
-            // All anchored at BottomCenter so the locate button sits
-            // above whatever's currently at the bottom (peek or nav)
-            // rather than hiding behind it at fixed pixel offsets.
+            // ── Locate FAB — pinned just above the bottom nav. It is
+            // composed BEFORE the sheet stack below, so an open peek
+            // sheet simply covers it instead of pushing it up.
+            LocateButton(
+                mode = locateMode,
+                onClick = {
+                    // Cycle Off → Following → Compass → Off.
+                    // OsmMapView observes the new mode and
+                    // takes care of recentring + (in Compass)
+                    // rotating the map to the device heading.
+                    locateMode = when (locateMode) {
+                        LocateMode.Off -> LocateMode.Following
+                        LocateMode.Following -> LocateMode.Compass
+                        LocateMode.Compass -> LocateMode.Off
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 14.dp,
+                        bottom = 12.dp + if (measuredNavHeightPx > 0) {
+                            with(density) { measuredNavHeightPx.toDp() }
+                        } else {
+                            bottomNavDp
+                        },
+                    )
+            )
+
+            // ── Bottom stack: peek sheet, then nav — anchored at
+            // BottomCenter so the sheets sit directly on the nav.
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    LocateButton(
-                        mode = locateMode,
-                        onClick = {
-                            // Cycle Off → Following → Compass → Off.
-                            // OsmMapView observes the new mode and
-                            // takes care of recentring + (in Compass)
-                            // rotating the map to the device heading.
-                            locateMode = when (locateMode) {
-                                LocateMode.Off -> LocateMode.Following
-                                LocateMode.Following -> LocateMode.Compass
-                                LocateMode.Compass -> LocateMode.Off
-                            }
-                        },
-                        modifier = Modifier.padding(end = 14.dp, bottom = 12.dp)
-                    )
-                }
                 when (peek) {
                     MapPeek.Home -> TakeMeHomeSheet(
                         options = decisionOptions,
@@ -672,6 +688,7 @@ fun MapScreen(
                 }
 
                 MapBottomNav(
+                    modifier = Modifier.onSizeChanged { measuredNavHeightPx = it.height },
                     entries = listOf(
                         MapNavEntry(
                             item = MapNavItem.TakeMeHome,
