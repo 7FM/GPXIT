@@ -1,0 +1,6 @@
+New in 0.2.1:
+- Refreshed light theme with brand green and a mint-green-on-near-black dark theme
+- Status-bar icons stay legible over light map tiles
+- Map controls no longer shift position as the screen updates
+- Keeps the screen on and shows GPXIT over the lock screen during navigation
+- Dependency and toolchain updates
