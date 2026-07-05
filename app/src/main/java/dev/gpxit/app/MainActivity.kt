@@ -26,6 +26,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Show over the lock screen (navigation-app convention): a
+        // mid-ride glance at the map / connections shouldn't require
+        // unlocking as long as GPXIT was the foreground app.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        }
+
         // Handle GPX shared via intent
         handleIncomingIntent(intent)
 
