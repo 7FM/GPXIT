@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark-shade overrides for the tracking notification, matched to the
+  GPXIT dark theme (mint-green brand accent on the neutral near-black
+  surfaces — same palette as the in-app dark surfaces). The progress
+  track uses a faint white wash since the shade card is dark.
+-->
+<resources>
+    <color name="notif_accent">#7ED18E</color>
+    <color name="notif_accent_dark">#66B978</color>
+    <color name="notif_progress_bg">#14FFFFFF</color>
+</resources>

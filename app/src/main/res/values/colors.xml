@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tracking-notification palette (light shade). The countdown hero
+  notification keeps the peach brand accent on light shades; dark
+  shades swap to the mint-green dark-theme accent via
+  `values-night/colors.xml`. Body text intentionally falls back to the
+  system theme attributes
+  (`?android:attr/textColorPrimary`/`textColorSecondary`) so the
+  notification reads correctly under both light- and dark-mode shades —
+  only the brand accent + progress fill are pinned.
+-->
+<resources>
+    <color name="notif_accent">#F2B89A</color>
+    <color name="notif_accent_dark">#E9A079</color>
+    <color name="notif_progress_bg">#33000000</color>
+</resources>

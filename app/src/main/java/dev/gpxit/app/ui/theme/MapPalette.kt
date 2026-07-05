@@ -10,9 +10,9 @@ import androidx.compose.ui.graphics.Color
  * `[data-theme="dark"]` overrides. The map screen, its sheets, and
  * the settings accordion all read these directly instead of going
  * through Material's `colorScheme` because the handoff specifies a
- * warm cream surface in light mode and a dark slate / peach accent
- * pairing in dark mode that the dynamic Material palettes can't
- * reproduce on their own.
+ * warm cream surface in light mode and a near-black cool surface with
+ * a mint-green accent in dark mode that the dynamic Material palettes
+ * can't reproduce on their own.
  *
  * Mirrors the `TRACK` object in the handoff's
  * `components/variations.jsx`.
@@ -62,24 +62,24 @@ val MapPaletteLight: MapPalette = MapPalette(
 )
 
 val MapPaletteDark: MapPalette = MapPalette(
-    accent = Color(0xFFF2B89A),       // peach primary
-    accentDark = Color(0xFFE9A079),
-    accentTint = Color(0x24F2B89A),   // ~14% peach
-    accentBg = Color(0x14F2B89A),     // ~8% peach
-    accentFill = Color(0x33F2B89A),   // ~20% peach
-    onAccent = Color(0xFF3A1A0C),     // rust ink on peach
-    ink = Color(0xFFE9E4DE),
-    inkSoft = Color(0xFF9B958C),
-    inkLight = Color(0xFF6F6A63),
-    surface = Color(0xFF242628),      // elevated card
-    surfaceMuted = Color(0xFF2A2C2F),
-    surfaceAlt = Color(0xFF1F2022),   // secondary stripe
-    sheetBg = Color(0xFF1B1C1E),      // full-screen bg
+    accent = Color(0xFF7ED18E),       // mint-green primary
+    accentDark = Color(0xFF66B978),
+    accentTint = Color(0x247ED18E),   // ~14% mint
+    accentBg = Color(0x147ED18E),     // ~8% mint
+    accentFill = Color(0x337ED18E),   // ~20% mint
+    onAccent = Color(0xFF0E2914),     // dark-green ink on mint
+    ink = Color(0xFFE6E3DE),
+    inkSoft = Color(0xFF9A968E),
+    inkLight = Color(0xFF6C6862),
+    surface = Color(0xFF1F2223),      // elevated card
+    surfaceMuted = Color(0xFF292D2E),
+    surfaceAlt = Color(0xFF1A1D1E),   // secondary stripe
+    sheetBg = Color(0xFF131516),      // full-screen bg — neutral dark, no brown tint
     line = Color(0x14FFFFFF),
     handle = Color(0x38FFFFFF),
-    trackActive = Color(0xFFE9A17A),
-    transferBg = Color(0x1FE9A17A),
-    transferInk = Color(0xFFE9A17A),
+    trackActive = Color(0xFFE8776A),  // coral red — stop button
+    transferBg = Color(0x24E8776A),   // ~14% coral — transfer chips
+    transferInk = Color(0xFFE8776A),
 )
 
 /** Light-only kept as an alias for the few callers that need to opt out. */
