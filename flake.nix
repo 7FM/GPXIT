@@ -40,6 +40,20 @@
           platformVersions = [ "35" ];
           abiVersions = [ "armeabi-v7a" "arm64-v8a" ];
         };
+
+        # Separate, heavier composition for the screenshot pipeline:
+        # adds the (NixOS-patched) emulator plus an x86_64 system image
+        # (~1.5 GB) that the default dev shell shouldn't have to pay for.
+        # Used by scripts/generate-screenshots.sh via `nix develop
+        # .#screenshots`.
+        androidEmu = pkgs.androidenv.composeAndroidPackages {
+          buildToolsVersions = [ "35.0.0" ];
+          platformVersions = [ "35" ];
+          includeEmulator = true;
+          includeSystemImages = true;
+          systemImageTypes = [ "default" ];
+          abiVersions = [ "x86_64" ];
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -51,6 +65,19 @@
           ];
           ANDROID_SDK_ROOT = "${android.androidsdk}/libexec/android-sdk";
           ANDROID_HOME = "${android.androidsdk}/libexec/android-sdk";
+          JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
+        };
+
+        devShells.screenshots = pkgs.mkShell {
+          packages = [
+            pkgs.jdk21
+            gradle
+            pkgs.android-tools # host adb
+            androidEmu.androidsdk # emulator + system image + avdmanager
+            pkgs.curl
+          ];
+          ANDROID_SDK_ROOT = "${androidEmu.androidsdk}/libexec/android-sdk";
+          ANDROID_HOME = "${androidEmu.androidsdk}/libexec/android-sdk";
           JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
         };
       }
