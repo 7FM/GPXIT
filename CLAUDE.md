@@ -14,7 +14,7 @@ Package: `dev.gpxit.app` | Min SDK 26 | Target SDK 35 | Kotlin + Jetpack Compose
 
 Nix flake provides a reproducible dev shell. Enter via `nix develop` or automatically via direnv (`.envrc`).
 
-Toolchain: JDK 21, Gradle 8.12.1, Android SDK platform 35, build-tools 35.0.0.
+Toolchain: JDK 21, Gradle 9.5.1, Android SDK platform 35, build-tools 35.0.0.
 
 ## Build Commands
 
