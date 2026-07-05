@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import de.schildbach.pte.dto.Product
 import dev.gpxit.app.data.gpx.findClosestPointIndex
@@ -399,6 +400,18 @@ fun GpxitApp(
         // simply mirror the resolved theme: light icons on dark bg,
         // dark icons on light bg. Re-runs on theme-pref changes
         // because `resolvedDark` is captured here.
+        //
+        // Exception: the map screen. Its OSM tiles are always light
+        // and extend under the status bar, so white status icons in
+        // dark mode are illegible there — force dark status icons on
+        // that route. The navigation bar sits on the themed bottom
+        // nav, so it keeps mirroring the theme. When a fullscreen
+        // themed overlay (the take-me-home timeline) covers the
+        // tiles, the override is lifted and the icons mirror the
+        // theme again.
+        val backStackEntry by navController.currentBackStackEntryAsState()
+        var mapFullscreenOverlay by remember { mutableStateOf(false) }
+        val onMapTiles = backStackEntry?.destination?.route == "map" && !mapFullscreenOverlay
         val view = LocalView.current
         if (!view.isInEditMode) {
             SideEffect {
@@ -407,7 +420,7 @@ fun GpxitApp(
                 val controller = WindowCompat.getInsetsController(window, view)
                 // isAppearanceLightStatusBars = true → DARK icons.
                 val appearLight = !resolvedDark
-                controller.isAppearanceLightStatusBars = appearLight
+                controller.isAppearanceLightStatusBars = appearLight || onMapTiles
                 controller.isAppearanceLightNavigationBars = appearLight
             }
         }
@@ -703,7 +716,8 @@ fun GpxitApp(
                     homeStationName = prefs.homeStationName,
                     avgSpeedKmh = prefs.avgSpeedKmh,
                     tripSnapshot = tripTrackingState.snapshot,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onFullscreenOverlayChanged = { mapFullscreenOverlay = it },
                 )
             }
             composable("settings") {

@@ -143,6 +143,7 @@ fun MapScreen(
     avgSpeedKmh: Double = 18.0,
     tripSnapshot: dev.gpxit.app.data.tracking.TripSnapshot? = null,
     onBack: () -> Unit,
+    onFullscreenOverlayChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val routeInfo by routeInfoFlow.collectAsState()
@@ -160,6 +161,12 @@ fun MapScreen(
     // Which peek sheet (if any) is up.
     var peek by remember { mutableStateOf(MapPeek.None) }
     var fullscreenTimeline by remember { mutableStateOf(false) }
+    // The fullscreen timeline is a themed surface covering the light
+    // map tiles — GpxitApp flips the status-bar icon tint while it's
+    // up (white icons in dark mode instead of the map's dark ones).
+    androidx.compose.runtime.LaunchedEffect(fullscreenTimeline) {
+        onFullscreenOverlayChanged(fullscreenTimeline)
+    }
     var showLayers by remember { mutableStateOf(false) }
     // Three-state location-tracking toggle driven by the bottom-right
     // FAB. Off → Following → Compass → Off; manual map pans inside
