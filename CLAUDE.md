@@ -14,7 +14,12 @@ Package: `dev.gpxit.app` | Min SDK 26 | Target SDK 35 | Kotlin + Jetpack Compose
 
 Nix flake provides a reproducible dev shell. Enter via `nix develop` or automatically via direnv (`.envrc`).
 
-Toolchain: JDK 21, Gradle 9.5.1, Android SDK platform 35, build-tools 35.0.0.
+Toolchain: JDK 21, Gradle 9.6.1, Android SDK platform 37.0, build-tools 37.0.0.
+
+`compileSdk`/`buildToolsVersion` (`app/build.gradle.kts`), `androidSdk` (`flake.nix`),
+and the SDK install steps in `.github/workflows/{build,release}.yml` must be kept in
+sync. From API 37 on, Google only publishes minor-versioned platforms, so the SDK
+package is `platforms;android-37.0` — there is no bare `android-37`.
 
 ## Build Commands
 

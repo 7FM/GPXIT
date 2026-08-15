@@ -5,7 +5,12 @@ plugins {
 
 android {
     namespace = "dev.gpxit.app"
-    compileSdk = 35
+    compileSdk = 37
+
+    // Pinned so the Nix dev shell (flake.nix) and CI provision the exact same
+    // build-tools AGP asks for; otherwise AGP silently wants its own default
+    // and tries to sdkmanager-install it into the read-only Nix store.
+    buildToolsVersion = "37.0.0"
 
     defaultConfig {
         applicationId = "dev.gpxit.app"

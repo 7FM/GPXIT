@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # Pinned to a JitPack commit SHA, which Dependabot cannot order or
+      # compare (upstream publishes no tags either). Tracked instead by
+      # .github/workflows/update-transit-enabler.yml.
+      - dependency-name: "com.github.schildbach:public-transport-enabler"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

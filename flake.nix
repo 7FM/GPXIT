@@ -20,10 +20,11 @@
 
         gradle = pkgs.stdenv.mkDerivation rec {
           pname = "gradle";
-          version = "9.5.1";
+          # Keep in sync with gradle/wrapper/gradle-wrapper.properties
+          version = "9.6.1";
           src = pkgs.fetchurl {
             url = "https://services.gradle.org/distributions/gradle-${version}-bin.zip";
-            sha256 = "sha256-uvwUG2Ga1jUP2XX8kDFW3VwVGZjMiwWOjBBEq197Ax8=";
+            sha256 = "sha256-nA9/ruswbLFOQnmj4ITKa1lolAiaBjjmigfJRaMsnhQ=";
           };
           nativeBuildInputs = [ pkgs.unzip pkgs.makeWrapper ];
           unpackPhase = "unzip $src";
@@ -35,25 +36,36 @@
           '';
         };
 
-        android = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "35.0.0" ];
-          platformVersions = [ "35" ];
-          abiVersions = [ "armeabi-v7a" "arm64-v8a" ];
+        # Keep in sync with compileSdk in app/build.gradle.kts. From API 37 on,
+        # Google only publishes minor-versioned platforms (android-37.0), so
+        # there is no bare "37" package to ask for.
+        androidSdk = {
+          buildToolsVersions = [ "37.0.0" ];
+          platformVersions = [ "37.0" ];
         };
+
+        android = pkgs.androidenv.composeAndroidPackages (
+          androidSdk
+          // {
+            abiVersions = [ "armeabi-v7a" "arm64-v8a" ];
+          }
+        );
 
         # Separate, heavier composition for the screenshot pipeline:
         # adds the (NixOS-patched) emulator plus an x86_64 system image
         # (~1.5 GB) that the default dev shell shouldn't have to pay for.
         # Used by scripts/generate-screenshots.sh via `nix develop
         # .#screenshots`.
-        androidEmu = pkgs.androidenv.composeAndroidPackages {
-          buildToolsVersions = [ "35.0.0" ];
-          platformVersions = [ "35" ];
-          includeEmulator = true;
-          includeSystemImages = true;
-          systemImageTypes = [ "default" ];
-          abiVersions = [ "x86_64" ];
-        };
+        # API 37 ships no "default" system image, only google_apis variants.
+        androidEmu = pkgs.androidenv.composeAndroidPackages (
+          androidSdk
+          // {
+            includeEmulator = true;
+            includeSystemImages = true;
+            systemImageTypes = [ "google_apis" ];
+            abiVersions = [ "x86_64" ];
+          }
+        );
       in
       {
         devShells.default = pkgs.mkShell {

@@ -1,0 +1,116 @@
+name: Update public-transport-enabler
+
+# public-transport-enabler is consumed from JitPack pinned to an upstream commit
+# SHA. Dependabot cannot track it: its gradle ecosystem orders versions
+# semantically, and a 40-char git SHA has no ordering — upstream also publishes
+# no tags or releases at all, so there is nothing for Dependabot to compare
+# against. This job fills that gap.
+#
+# It does two things:
+#   1. Opens a PR when upstream master moves.
+#   2. Fails loudly if the *currently pinned* artifact stops resolving. JitPack
+#      garbage-collects build outputs for untagged commits, which silently breaks
+#      every clean build (a warm Gradle cache hides it locally) — exactly the
+#      failure that took CI down before this job existed.
+
+on:
+  schedule:
+    # 04:23 UTC daily — offset from the top of the hour to avoid the cron spike.
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM: schildbach/public-transport-enabler
+  GROUP_PATH: com/github/schildbach/public-transport-enabler
+  TOML: gradle/libs.versions.toml
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve current and upstream commits
+        id: resolve
+        run: |
+          set -euo pipefail
+          current=$(grep -oP 'public-transport-enabler".*version = "\K[0-9a-f]{40}' "$TOML")
+          latest=$(git ls-remote "https://github.com/$UPSTREAM.git" refs/heads/master | cut -f1)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest"   >> "$GITHUB_OUTPUT"
+          echo "Pinned:   $current"
+          echo "Upstream: $latest"
+
+      - name: Verify the pinned artifact still resolves
+        # Guards against JitPack evicting the build we depend on today.
+        run: |
+          set -euo pipefail
+          sha='${{ steps.resolve.outputs.current }}'
+          url="https://jitpack.io/$GROUP_PATH/$sha/public-transport-enabler-$sha.jar"
+          code=$(curl -sSL -o /dev/null -w '%{http_code}' "$url")
+          if [ "$code" != "200" ]; then
+            echo "::error::Pinned public-transport-enabler commit $sha no longer resolves on JitPack (HTTP $code)."
+            echo "::error::Clean builds are broken. Merge the update PR from this workflow, or re-pin to a commit JitPack still serves."
+            exit 1
+          fi
+          echo "Pinned artifact OK."
+
+      - name: Build the new commit on JitPack
+        id: jitpack
+        if: steps.resolve.outputs.current != steps.resolve.outputs.latest
+        # A first request for an unseen commit makes JitPack start a build; poll
+        # until the artifact is actually downloadable rather than trusting the
+        # status API, which reports "ok" even for evicted builds.
+        run: |
+          set -uo pipefail
+          sha='${{ steps.resolve.outputs.latest }}'
+          url="https://jitpack.io/$GROUP_PATH/$sha/public-transport-enabler-$sha.jar"
+          for attempt in $(seq 1 40); do
+            code=$(curl -sSL -o /dev/null -w '%{http_code}' "$url" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "JitPack serving $sha after ${attempt} attempt(s)."
+              echo "ok=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $code — waiting for JitPack build..."
+            sleep 30
+          done
+          echo "::error::JitPack did not produce an artifact for $sha within ~20 minutes."
+          echo "::error::Check the build log: https://jitpack.io/$GROUP_PATH/$sha/build.log"
+          exit 1
+
+      - name: Bump the pinned commit
+        if: steps.jitpack.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          sed -i 's/${{ steps.resolve.outputs.current }}/${{ steps.resolve.outputs.latest }}/' "$TOML"
+          git diff --stat
+
+      - name: Open pull request
+        if: steps.jitpack.outputs.ok == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/update-public-transport-enabler
+          base: main
+          commit-message: |
+            Bump public-transport-enabler to ${{ steps.resolve.outputs.latest }}
+          title: "Bump public-transport-enabler to `${{ steps.resolve.outputs.latest }}`"
+          body: |
+            Upstream `${{ env.UPSTREAM }}` master moved and the new commit builds on JitPack.
+
+            | | commit |
+            |---|---|
+            | from | [`${{ steps.resolve.outputs.current }}`](https://github.com/${{ env.UPSTREAM }}/commit/${{ steps.resolve.outputs.current }}) |
+            | to | [`${{ steps.resolve.outputs.latest }}`](https://github.com/${{ env.UPSTREAM }}/commit/${{ steps.resolve.outputs.latest }}) |
+
+            [Compare](https://github.com/${{ env.UPSTREAM }}/compare/${{ steps.resolve.outputs.current }}...${{ steps.resolve.outputs.latest }})
+            · [JitPack build log](https://jitpack.io/${{ env.GROUP_PATH }}/${{ steps.resolve.outputs.latest }}/build.log)
+
+            Opened automatically because Dependabot cannot track a JitPack
+            commit-SHA dependency. Transit queries are the core of the app, so
+            check the Build workflow before merging.
+          delete-branch: true

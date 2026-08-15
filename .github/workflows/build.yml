@@ -21,8 +21,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6.2.0
 
-      - name: Accept Android SDK licenses
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+      - name: Install Android SDK packages
+        # Keep in sync with compileSdk / buildToolsVersion in app/build.gradle.kts
+        # and with androidSdk in flake.nix. From API 37 on Google only ships
+        # minor-versioned platforms, hence "android-37.0" rather than "android-37".
+        run: |
+          SDKMANAGER=$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+          yes | $SDKMANAGER --licenses || true
+          $SDKMANAGER "platforms;android-37.0" "build-tools;37.0.0"
 
       - name: Run unit tests
         run: ./gradlew testFossDebugUnitTest
