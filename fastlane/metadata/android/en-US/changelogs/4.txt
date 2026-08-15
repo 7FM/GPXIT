@@ -1,0 +1,4 @@
+Maintenance release — no user-facing changes:
+- Now built against Android SDK 37
+- Updated Kotlin, Gradle, AndroidX lifecycle, and Play Services location
+- Repaired the build after the transit library's upstream artifacts became unavailable
