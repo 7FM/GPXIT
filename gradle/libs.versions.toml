@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.4.0"
+kotlin = "2.4.10"
 compose-bom = "2026.06.01"
 navigation = "2.9.8"
 lifecycle = "2.10.0"
