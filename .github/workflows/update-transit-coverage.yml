@@ -1,0 +1,112 @@
+name: Update transit coverage
+
+# app/src/main/assets/transit/coverage.json holds the coverage areas of our
+# transit backends (where DB, Rejseplanen, Resrobot, Traveline and Transitous
+# have realtime, regular or partial data). They come from KPublicTransport
+# (CC0), whose maintainers adjust them as networks change and disable dead
+# endpoints. This job re-imports them and opens a PR when the areas changed —
+# a new KPublicTransport commit alone is not a reason for a PR.
+#
+# PRs opened with GITHUB_TOKEN don't trigger other workflows, so the transit
+# unit tests (which check backend selection against this data) run here and
+# their result goes into the PR description.
+
+on:
+  schedule:
+    # 05:41 UTC every Monday — offset from the top of the hour to avoid the cron spike.
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  # GitHub mirror of https://invent.kde.org/libraries/kpublictransport
+  KPT_REPO: https://github.com/KDE/kpublictransport.git
+  ASSET: app/src/main/assets/transit/coverage.json
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch KPublicTransport
+        run: git clone --depth 1 "$KPT_REPO" "$RUNNER_TEMP/kpublictransport"
+
+      - name: Re-import coverage
+        id: import
+        # Fails if a mapped KPublicTransport network config was renamed or
+        # removed — fix the mapping in scripts/import_kpt_coverage.py then.
+        run: |
+          set -euo pipefail
+          python3 scripts/import_kpt_coverage.py "$RUNNER_TEMP/kpublictransport" "$ASSET" \
+            --changes-file "$RUNNER_TEMP/changes.md"
+          if [ -s "$RUNNER_TEMP/changes.md" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            # Only the recorded KPublicTransport commit moved; keep the file as is.
+            git checkout -- "$ASSET"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "commit=$(git -C "$RUNNER_TEMP/kpublictransport" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          delimiter="changes-${RANDOM}${RANDOM}${RANDOM}"
+          {
+            echo "changes<<$delimiter"
+            cat "$RUNNER_TEMP/changes.md"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 21
+        if: steps.import.outputs.changed == 'true'
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        if: steps.import.outputs.changed == 'true'
+        uses: gradle/actions/setup-gradle@v6.3.0
+
+      - name: Install Android SDK packages
+        if: steps.import.outputs.changed == 'true'
+        # Keep in sync with build.yml, compileSdk / buildToolsVersion in
+        # app/build.gradle.kts and androidSdk in flake.nix.
+        run: |
+          SDKMANAGER=$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+          yes | $SDKMANAGER --licenses || true
+          $SDKMANAGER "platforms;android-37.0" "build-tools;37.0.0"
+
+      - name: Run transit tests
+        id: tests
+        if: steps.import.outputs.changed == 'true'
+        # Backend selection tests assert concrete choices (e.g. Copenhagen →
+        # Rejseplanen); coverage changes can legitimately break them, so the PR
+        # is opened either way and says how they went.
+        continue-on-error: true
+        run: ./gradlew testFossDebugUnitTest --tests 'dev.gpxit.app.data.transit.*'
+
+      - name: Open pull request
+        if: steps.import.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/update-transit-coverage
+          base: main
+          commit-message: |
+            Update transit coverage from KPublicTransport
+
+            KPublicTransport ${{ steps.import.outputs.commit }}
+          title: "Update transit coverage from KPublicTransport"
+          body: |
+            The coverage areas of our transit backends changed in KPublicTransport
+            (as of [${{ steps.import.outputs.commit }}](https://invent.kde.org/libraries/kpublictransport/-/commit/${{ steps.import.outputs.commit }})):
+
+            ${{ steps.import.outputs.changes }}
+
+            Transit unit tests: **${{ steps.tests.outcome == 'success' && 'passed' || 'FAILED — see the workflow run' }}**
+            ([run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))
+
+            These areas decide which backends the app asks for stations and
+            trips. Opened automatically by the weekly coverage refresh.
+          delete-branch: true
