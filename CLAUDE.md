@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GPXIT is an Android app for cyclists who plan one-way bike routes (e.g. via Komoot) and need to take a train home. The app imports a GPX route, discovers train stations along it, and shows live train connections home — helping decide whether to stop now or ride to the next station.
 
-Transit data comes from several backends (`data/transit/`): Deutsche Bahn (`DbProvider`) everywhere it covers, national PTE providers (DSB, Resrobot, Traveline) where DB is weak, and optionally Transitous (own MOTIS client, opt-in setting). `TransitBackendRegistry` picks the backends per place / trip from KPublicTransport's coverage data (`assets/transit/coverage.json`, regenerate with `scripts/import_kpt_coverage.py`); results are merged and de-duplicated.
+Transit data comes from several backends (`data/transit/`): Deutsche Bahn (`DbProvider`) everywhere it covers, national PTE providers (DSB, Resrobot, Traveline) where DB is weak, and optionally Transitous (own MOTIS client, opt-in setting). `TransitBackendRegistry` picks the backends per place / trip from KPublicTransport's coverage data (`assets/transit/coverage.json`, regenerate with `scripts/import_kpt_coverage.py`); results are merged and de-duplicated. `CoverageCache` remembers per ~500 m cell which backends had stations during route discovery and skips one that had none where another had some.
 
 Package: `dev.gpxit.app` | Min SDK 26 | Target SDK 35 | Kotlin + Jetpack Compose
 

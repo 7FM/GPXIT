@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Entry point for all transit queries. Picks the backends to ask from
@@ -25,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
 class TransitRepository(context: Context) {
 
     private val registry = TransitBackendRegistry.get(context)
+    private val coverageCache = CoverageCache.get(context)
     private val prefsRepository = PrefsRepository(context.applicationContext)
 
     private suspend fun enabledBackends(): (String) -> Boolean {
@@ -44,7 +46,7 @@ class TransitRepository(context: Context) {
         requiredProducts: Set<String>? = null
     ): List<StationCandidate> = withContext(Dispatchers.IO) {
         val backendIds = registry.stationBackendIds(lat, lon, enabledBackends())
-        val results = queryStations(backendIds, lat, lon, maxDistanceMeters, maxLocations)
+        val results = queryStations(backendIds, lat, lon, maxDistanceMeters, maxLocations).map { it.second }
         val stations = results.mapNotNull { it.getOrNull() }
         if (stations.isEmpty() && results.isNotEmpty()) {
             throw results.first().exceptionOrNull() ?: IOException("no transit backend answered")
@@ -59,10 +61,10 @@ class TransitRepository(context: Context) {
         lon: Double,
         radiusMeters: Int,
         maxResults: Int,
-    ): List<Result<List<StationCandidate>>> = coroutineScope {
+    ): List<Pair<String, Result<List<StationCandidate>>>> = coroutineScope {
         backendIds.mapNotNull { registry.byId(it) }.map { backend ->
             async {
-                runCatching { backend.findNearbyStations(lat, lon, radiusMeters, maxResults) }
+                backend.id to runCatching { backend.findNearbyStations(lat, lon, radiusMeters, maxResults) }
                     .onFailure {
                         Log.w(TAG, "Station query failed at $lat,$lon (${backend.id})", it)
                     }
@@ -249,21 +251,37 @@ class TransitRepository(context: Context) {
         // query threw" (e.g. offline) from "queries returned, just nothing
         // matched" (sparse rural route).
         val enabled = enabledBackends()
+        val skippedQueries = AtomicInteger()
         val perSample = samplePoints.map { samplePoint ->
             async {
-                val backendIds = registry.stationBackendIds(samplePoint.lat, samplePoint.lon, enabled)
+                val candidates = registry.stationBackendIds(samplePoint.lat, samplePoint.lon, enabled)
+                // Don't ask a backend again where it had nothing and another one had stations.
+                val backendIds = coverageCache.prune(
+                    samplePoint.lat, samplePoint.lon, searchRadiusMeters, candidates
+                )
+                skippedQueries.addAndGet(candidates.size - backendIds.size)
                 // Fetch a large per-sample batch so train stations aren't
                 // crowded out by nearby tram/bus stops in dense urban areas
                 // (e.g. Mannheim Hbf sits in a cluster of ~50+ stops).
                 queryStations(backendIds, samplePoint.lat, samplePoint.lon, searchRadiusMeters, 100)
+                    .onEach { (backendId, result) ->
+                        result.getOrNull()?.let { stations ->
+                            coverageCache.record(
+                                samplePoint.lat, samplePoint.lon, searchRadiusMeters, backendId, stations.size
+                            )
+                        }
+                    }
+                    .map { it.second }
             }
         }.awaitAll()
+        coverageCache.save()
         val allResults = perSample.flatten()
         val allStations = allResults.mapNotNull { it.getOrNull() }.flatten().filterProducts(requiredProducts)
         val networkFailed = allResults.isNotEmpty() && allResults.all { it.isFailure }
         val involved = allStations.map { it.backendId }.toSortedSet()
         Log.i(TAG, "Route discovery: ${allStations.size} stations from $involved, " +
-            "${allResults.count { it.isFailure }} of ${allResults.size} queries failed")
+            "${allResults.count { it.isFailure }} of ${allResults.size} queries failed, " +
+            "${skippedQueries.get()} skipped by the coverage cache")
 
         // Deduplicate by station id, keeping the one with smallest distance from route
         val deduped = allStations
