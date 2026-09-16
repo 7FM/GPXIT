@@ -29,6 +29,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,16 +37,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import dev.gpxit.app.data.gpx.routeClimbDescentMeters
+import dev.gpxit.app.data.poi.PoiHoursInfo
+import dev.gpxit.app.data.poi.PoiOpeningHours
 import dev.gpxit.app.domain.ConnectionOption
+import dev.gpxit.app.domain.Poi
 import dev.gpxit.app.domain.StationCandidate
 import dev.gpxit.app.ui.import_route.DesignIcons
 import dev.gpxit.app.ui.theme.LocalMapPalette
 import dev.gpxit.app.ui.theme.rememberMapPalette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 import org.osmdroid.util.GeoPoint
+import java.time.Duration
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 /** Tiny 4-tuple for (latSouth, latNorth, lonWest, lonEast) viewport state. */
 private data class Quadruple<A, B, C, D>(
@@ -323,6 +333,26 @@ fun MapScreen(
         }
     }
 
+    // Opening-hours status of the POIs on screen, re-evaluated every minute.
+    val poiOpeningHours = remember(poiDatabase) {
+        PoiOpeningHours(holidayCalendar = poiDatabase::holidayCalendar)
+    }
+    val currentMinute by produceState(LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES)) {
+        while (true) {
+            val now = LocalDateTime.now()
+            val nextMinute = now.truncatedTo(ChronoUnit.MINUTES).plusMinutes(1)
+            delay(Duration.between(now, nextMinute).toMillis())
+            value = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES)
+        }
+    }
+    val poiHours by produceState(emptyMap<Poi, PoiHoursInfo>(), pois, currentMinute) {
+        value = withContext(Dispatchers.Default) {
+            pois.mapNotNull { poi ->
+                poiOpeningHours.info(poi, currentMinute)?.let { poi to it }
+            }.toMap()
+        }
+    }
+
     androidx.compose.runtime.SideEffect {
         if (initialMapCommand != MapCommand.NONE) {
             mapCommand = initialMapCommand
@@ -392,6 +422,7 @@ fun MapScreen(
                 previewPosition = previewPosition,
                 stationLabels = stationLabels,
                 pois = pois,
+                poiHours = poiHours,
                 showStations = showStations,
                 mapCommand = mapCommand,
                 onMapCommandHandled = { mapCommand = MapCommand.NONE },

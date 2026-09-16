@@ -88,6 +88,9 @@ dependencies {
         exclude(group = "net.sf.kxml", module = "kxml2")
     }
 
+    // Parser for OSM opening_hours values (the one StreetComplete uses)
+    implementation(libs.osm.opening.hours)
+
     // Google Play Services location — only for full flavor
     "fullImplementation"(libs.play.services.location)
 

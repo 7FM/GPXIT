@@ -13,5 +13,9 @@ data class Poi(
     val type: PoiType,
     val lat: Double,
     val lon: Double,
-    val name: String?
+    val name: String?,
+    /** Raw OSM `opening_hours` value. */
+    val openingHours: String? = null,
+    /** Holiday region (e.g. `DE-HE`) used to evaluate `PH` / `SH` in [openingHours]. */
+    val holidayRegion: String? = null,
 )

@@ -1,0 +1,5 @@
+# Dependencies of build_poi_db.py (installed by .github/workflows/build-poi-dataset.yml).
+# Deliberately unpinned upwards: the monthly build should pick up the latest
+# holiday data (school holidays are published a few years ahead at most).
+holidays>=0.104
+shapely>=2.1.2

@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.graphics.toArgb
+import dev.gpxit.app.data.openinghours.OpenState
+import dev.gpxit.app.data.poi.PoiHoursInfo
 import dev.gpxit.app.domain.RouteInfo
 import dev.gpxit.app.domain.StationCandidate
 import dev.gpxit.app.ui.theme.RoutePolylineColor
@@ -383,6 +385,8 @@ private fun createLabeledStationBitmap(
     return bmp
 }
 
+private const val CLOSED_POI_ALPHA = 0.45f
+
 private fun createPoiBitmap(type: dev.gpxit.app.domain.PoiType): Bitmap {
     val size = 40
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -701,6 +705,8 @@ fun OsmMapView(
     previewPosition: GeoPoint? = null,
     stationLabels: Map<String, dev.gpxit.app.domain.StationLabel> = emptyMap(),
     pois: List<dev.gpxit.app.domain.Poi> = emptyList(),
+    /** Opening-hours status per POI in [pois]; POIs without hours are absent. */
+    poiHours: Map<dev.gpxit.app.domain.Poi, PoiHoursInfo> = emptyMap(),
     showStations: Boolean = true,
     mapCommand: MapCommand,
     onMapCommandHandled: () -> Unit,
@@ -1317,6 +1323,7 @@ fun OsmMapView(
             }
 
             // POI markers (grocery, bakery, water, toilet, bike repair)
+            val now = java.time.LocalDateTime.now()
             for (poi in pois) {
                 val bmp = when (poi.type) {
                     dev.gpxit.app.domain.PoiType.GROCERY -> poiGroceryBmp
@@ -1336,6 +1343,12 @@ fun OsmMapView(
                     }
                     icon = BitmapDrawable(context.resources, bmp)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    poiHours[poi]?.let { hours ->
+                        snippet = poiHoursSnippet(hours, now)
+                        subDescription = poiHoursDetails(hours)
+                        // Fade what's closed right now so open places stand out.
+                        if (hours.status?.state == OpenState.CLOSED) alpha = CLOSED_POI_ALPHA
+                    }
                 }
                 map.overlays.add(marker)
                 contentOverlays.add(marker)

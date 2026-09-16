@@ -55,6 +55,8 @@ class RouteStorage(private val context: Context) {
                 put("lat", p.lat)
                 put("lon", p.lon)
                 p.name?.let { put("name", it) }
+                p.openingHours?.let { put("opening_hours", it) }
+                p.holidayRegion?.let { put("holiday_region", it) }
             })
         }
         poisFile.writeText(arr.toString())
@@ -76,7 +78,9 @@ class RouteStorage(private val context: Context) {
                     type = type,
                     lat = obj.getDouble("lat"),
                     lon = obj.getDouble("lon"),
-                    name = obj.optString("name").takeIf { it.isNotBlank() }
+                    name = obj.optString("name").takeIf { it.isNotBlank() },
+                    openingHours = obj.optString("opening_hours").takeIf { it.isNotBlank() },
+                    holidayRegion = obj.optString("holiday_region").takeIf { it.isNotBlank() },
                 )
             }
         } catch (_: Exception) {

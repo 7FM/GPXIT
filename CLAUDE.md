@@ -47,6 +47,7 @@ Single-module app, MVVM with ViewModels and Compose. No DI framework — manual 
 ### Key libraries
 - **public-transport-enabler** (JitPack) — queries Deutsche Bahn (`DbProvider`) and the national providers for nearby stations and connections, wrapped in `PteBackend`.
 - **android-gpx-parser** (JitPack) — parses GPX 1.1 files.
+- **osm-opening-hours** (`de.westnordost`, the StreetComplete parser) — parses OSM `opening_hours`; evaluation is our own (`data/openinghours/`).
 - **osmdroid** — OpenStreetMap tiles, wrapped in `AndroidView` for Compose. Custom `OsmTileSource` (in `data/OsmTileSource.kt`) used for both display and offline download.
 - **DataStore Preferences** — persists user settings.
 
@@ -62,6 +63,8 @@ Single-module app, MVVM with ViewModels and Compose. No DI framework — manual 
 data/gpx/           — GpxParser + haversine/geo utilities
 data/transit/        — TransitRepository (facade), TransitBackendRegistry, PteBackend, TransitousBackend, station/trip matching
 data/prefs/          — PrefsRepository (DataStore)
+data/poi/            — PoiDatabase (SQLite dataset from scripts/build_poi_db.py), PoiOpeningHours
+data/openinghours/   — OpeningHoursEvaluator (rule semantics follow opening_hours.js), HolidayCalendar, SunTimes
 data/                — RouteStorage, MapTileDownloader, OsmTileSource
 domain/              — RoutePoint, RouteInfo, StationCandidate, ConnectionOption
 ui/import_route/     — GPX file import screen

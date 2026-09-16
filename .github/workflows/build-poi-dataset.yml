@@ -34,6 +34,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends osmium-tool
           osmium --version
 
+      - name: Install Python dependencies
+        # shapely assigns POIs to holiday regions, holidays computes the
+        # public / school holidays of those regions.
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet -r scripts/requirements.txt
+          .venv/bin/pip list | grep -Ei '^(holidays|shapely) '
+
       - name: Download OSM extract
         run: |
           URL="${{ github.event.inputs.source_pbf_url || 'https://download.geofabrik.de/europe/germany-latest.osm.pbf' }}"
@@ -61,9 +69,23 @@ jobs:
           osmium export -O -f geojsonseq -o filtered.geojsonseq filtered.osm.pbf
           ls -lh filtered.geojsonseq
 
+      - name: Extract holiday regions
+        # Administrative boundaries tagged with an ISO 3166 code (states,
+        # countries). The app needs to know which region a POI is in to
+        # evaluate public / school holiday rules in its opening hours.
+        # Relations cut off at the extract border can't be assembled into
+        # polygons; osmium skips them, and POIs there get no region.
+        run: |
+          osmium tags-filter -O -o boundaries.osm.pbf input.osm.pbf \
+            'r/ISO3166-2' 'r/ISO3166-1' 'r/ISO3166-1:alpha2'
+          osmium export -O -f geojsonseq --geometry-types=polygon \
+            -o boundaries.geojsonseq boundaries.osm.pbf
+          ls -lh boundaries.geojsonseq
+
       - name: Build SQLite DB
         run: |
-          python3 scripts/build_poi_db.py filtered.geojsonseq pois.db
+          .venv/bin/python scripts/build_poi_db.py filtered.geojsonseq pois.db \
+            --regions boundaries.geojsonseq
           ls -lh pois.db
 
       - name: Compress DB
@@ -84,5 +106,5 @@ jobs:
           DATE_STR="$(date -u +'%Y-%m-%d')"
           gh release create poi-data \
             --title "POI dataset ($DATE_STR)" \
-            --notes "Filtered OSM POI dataset (grocery / bakery / drinking water / toilets) for Germany. Rebuilt monthly." \
+            --notes "Filtered OSM POI dataset (grocery / bakery / drinking water / toilets / bike repair) for Germany, with opening hours and the public / school holidays needed to evaluate them. Rebuilt monthly." \
             pois.db.gz pois.db.gz.sha256
