@@ -46,6 +46,7 @@ import dev.gpxit.app.data.gpx.haversineMeters
 import dev.gpxit.app.domain.ConnectionOption
 import dev.gpxit.app.domain.TrainConnection
 import dev.gpxit.app.domain.TripLeg
+import dev.gpxit.app.ui.components.TransitousAttribution
 import dev.gpxit.app.ui.import_route.DesignIcons
 import dev.gpxit.app.ui.theme.LocalMapPalette
 import dev.gpxit.app.ui.theme.MapPalette
@@ -352,6 +353,11 @@ private fun StationDeparturesBlock(
                 }
             }
         }
+        TransitousAttribution(
+            connections = option.connections,
+            color = palette.inkSoft,
+            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 8.dp),
+        )
     } else {
         Text(
             text = "No connections found",

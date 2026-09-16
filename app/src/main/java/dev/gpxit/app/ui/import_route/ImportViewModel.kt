@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 
 class ImportViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val transitRepository = TransitRepository()
+    private val transitRepository = TransitRepository(application)
     private val poiDatabase = PoiDatabase(application)
     private val prefsRepository = PrefsRepository(application)
     private val routeStorage = RouteStorage(application)

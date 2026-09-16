@@ -10,10 +10,10 @@ Features:
 - Download map tiles for offline use
 - Configurable transport types (regional trains, S-Bahn, U-Bahn, tram, bus, ferry)
 - Optional ICE/IC/EC long-distance connections
-- Transit data via Deutsche Bahn (covers German and international connections)
+- Transit data via Deutsche Bahn (covers German and international connections), plus Rejseplanen, Resrobot and Traveline where DB is weak, and optionally the community-run Transitous service
 
 Privacy:
 - No tracking, no analytics, no accounts
 - All data stays on your device
 - Location is only used to show your position on the map
-- Internet is used only for map tiles (OpenStreetMap) and transit queries (Deutsche Bahn)
+- Internet is used only for map tiles (OpenStreetMap) and transit queries (Deutsche Bahn; Rejseplanen, Resrobot or Traveline for places they cover; Transitous only if enabled)

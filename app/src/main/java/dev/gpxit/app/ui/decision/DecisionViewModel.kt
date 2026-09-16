@@ -3,10 +3,11 @@ package dev.gpxit.app.ui.decision
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import de.schildbach.pte.dto.Product
 import dev.gpxit.app.data.gpx.CyclingTimeEstimator
 import dev.gpxit.app.data.gpx.findClosestPointIndex
 import dev.gpxit.app.data.prefs.PrefsRepository
+import dev.gpxit.app.data.prefs.homeStation
+import dev.gpxit.app.data.transit.TransitMode
 import dev.gpxit.app.data.transit.TransitRepository
 import dev.gpxit.app.domain.ConnectionOption
 import dev.gpxit.app.domain.RouteInfo
@@ -18,24 +19,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
-import java.util.EnumSet
 
 class DecisionViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val transitRepository = TransitRepository()
+    private val transitRepository = TransitRepository(application)
     private val prefsRepository = PrefsRepository(application)
-
-    private fun connectionProducts(productNames: Set<String>): Set<Product> {
-        val products = EnumSet.noneOf(Product::class.java)
-        for (name in productNames) {
-            try { products.add(Product.valueOf(name)) } catch (_: Exception) { }
-        }
-        if (products.isEmpty()) {
-            products.add(Product.REGIONAL_TRAIN)
-            products.add(Product.SUBURBAN_TRAIN)
-        }
-        return products
-    }
 
     private val _uiState = MutableStateFlow(DecisionUiState())
     val uiState: StateFlow<DecisionUiState> = _uiState
@@ -49,7 +37,8 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
 
             try {
                 val prefs = prefsRepository.preferences.first()
-                if (prefs.homeStationId == null) {
+                val home = prefs.homeStation
+                if (home == null) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = "Please set your home station in settings first"
@@ -75,7 +64,7 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 val now = Instant.now()
-                val products = connectionProducts(prefs.connectionProducts)
+                val modes = TransitMode.fromNames(prefs.connectionProducts)
 
                 // Limit to the user-configured number of stations ahead to
                 // keep the parallel-fan-out bounded.
@@ -100,12 +89,10 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
 
                         val rawConnections = try {
                             transitRepository.queryConnections(
-                                fromStationId = station.id,
-                                fromStationName = station.name,
-                                toStationId = prefs.homeStationId,
-                                toStationName = prefs.homeStationName ?: "Home",
+                                from = station,
+                                home = home,
                                 departureTime = arrivalAtStation,
-                                products = products
+                                modes = modes
                             )
                         } catch (_: Exception) {
                             emptyList()
@@ -164,7 +151,8 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val prefs = prefsRepository.preferences.first()
-                if (prefs.homeStationId == null) {
+                val home = prefs.homeStation
+                if (home == null) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = "Please set your home station in settings first"
@@ -179,17 +167,15 @@ class DecisionViewModel(application: Application) : AndroidViewModel(application
                 )
 
                 val now = Instant.now()
-                val products = connectionProducts(prefs.connectionProducts)
+                val modes = TransitMode.fromNames(prefs.connectionProducts)
                 val options = stations.map { station ->
                     async {
                         val connections = try {
                             transitRepository.queryConnections(
-                                fromStationId = station.id,
-                                fromStationName = station.name,
-                                toStationId = prefs.homeStationId,
-                                toStationName = prefs.homeStationName ?: "Home",
+                                from = station,
+                                home = home,
                                 departureTime = now,
-                                products = products
+                                modes = modes
                             )
                         } catch (_: Exception) {
                             emptyList()

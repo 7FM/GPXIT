@@ -1,0 +1,981 @@
+{
+ "from": {
+  "name": "START",
+  "lat": 44.7531,
+  "lon": 5.3703,
+  "vertexType": "NORMAL"
+ },
+ "to": {
+  "name": "Strasbourg (FR)",
+  "stopId": "be-sncb_8721202",
+  "lat": 48.585438,
+  "lon": 7.733903000000001,
+  "modes": [
+   "REGIONAL_RAIL"
+  ]
+ },
+ "itineraries": [
+  {
+   "duration": 35460,
+   "startTime": "2026-09-18T07:42:00Z",
+   "endTime": "2026-09-18T17:36:00Z",
+   "transfers": 3,
+   "legs": [
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "START",
+      "lat": 44.7531,
+      "lon": 5.3703,
+      "departure": "2026-09-18T07:42:00Z",
+      "scheduledDeparture": "2026-09-18T07:42:00Z"
+     },
+     "to": {
+      "name": "Die",
+      "stopId": "fr-horaires-sncf_FR::LMU:639b8c50-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.758238000000006,
+      "lon": 5.363219,
+      "arrival": "2026-09-18T07:57:00Z",
+      "scheduledArrival": "2026-09-18T07:57:00Z",
+      "modes": [
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T07:42:00Z",
+     "endTime": "2026-09-18T07:57:00Z",
+     "scheduledStartTime": "2026-09-18T07:42:00Z",
+     "scheduledEndTime": "2026-09-18T07:57:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Die",
+      "stopId": "fr-horaires-sncf_FR::LMU:639b8c50-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.758238000000006,
+      "lon": 5.363219,
+      "departure": "2026-09-18T07:57:00Z",
+      "scheduledDeparture": "2026-09-18T07:57:00Z",
+      "modes": [
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Valence Gare Routière",
+      "stopId": "fr-horaires-sncf_FR::LMO:bbe6b290-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.927222,
+      "lon": 4.892222,
+      "arrival": "2026-09-18T09:15:00Z",
+      "scheduledArrival": "2026-09-18T09:15:00Z",
+      "modes": [
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T07:57:00Z",
+     "endTime": "2026-09-18T09:15:00Z",
+     "scheduledStartTime": "2026-09-18T07:57:00Z",
+     "scheduledEndTime": "2026-09-18T09:15:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "Valence Gare Routière",
+      "stopId": "fr-horaires-sncf_FR::LMO:bbe6b290-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.927222,
+      "lon": 4.892222,
+      "arrival": "2026-09-18T09:15:00Z",
+      "scheduledArrival": "2026-09-18T09:15:00Z",
+      "modes": [
+       "BUS"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "33158",
+     "displayName": "TER 33158",
+     "intermediateStops": [
+      {
+       "name": "Saillans",
+       "stopId": "fr-horaires-sncf_FR::LMU:6542fac0-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 44.694416000000004,
+       "lon": 5.194129999999999,
+       "arrival": "2026-09-18T08:17:00Z",
+       "departure": "2026-09-18T08:17:00Z",
+       "scheduledArrival": "2026-09-18T08:17:00Z",
+       "scheduledDeparture": "2026-09-18T08:17:00Z",
+       "modes": [
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      },
+      {
+       "name": "Crest",
+       "stopId": "fr-horaires-sncf_FR::LMU:639ec0a0-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 44.73019600000001,
+       "lon": 5.016106,
+       "arrival": "2026-09-18T08:40:00Z",
+       "departure": "2026-09-18T08:40:00Z",
+       "scheduledArrival": "2026-09-18T08:40:00Z",
+       "scheduledDeparture": "2026-09-18T08:40:00Z",
+       "modes": [
+        "LONG_DISTANCE",
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      }
+     ]
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Valence Gare Routière",
+      "stopId": "fr-horaires-sncf_FR::LMO:bbe6b290-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.927222,
+      "lon": 4.892222,
+      "arrival": "2026-09-18T09:15:00Z",
+      "departure": "2026-09-18T09:15:00Z",
+      "scheduledArrival": "2026-09-18T09:15:00Z",
+      "scheduledDeparture": "2026-09-18T09:15:00Z",
+      "modes": [
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Valence Ville",
+      "stopId": "fr-horaires-sncf_FR::LMU:63c1b1f0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.928081,
+      "lon": 4.893288,
+      "arrival": "2026-09-18T09:19:00Z",
+      "scheduledArrival": "2026-09-18T09:19:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T09:15:00Z",
+     "endTime": "2026-09-18T09:19:00Z",
+     "scheduledStartTime": "2026-09-18T09:15:00Z",
+     "scheduledEndTime": "2026-09-18T09:19:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Valence Ville",
+      "stopId": "fr-horaires-sncf_FR::LMU:63c1b1f0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.928081,
+      "lon": 4.893288,
+      "departure": "2026-09-18T09:31:00Z",
+      "scheduledDeparture": "2026-09-18T09:31:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:40:00Z",
+      "scheduledArrival": "2026-09-18T10:40:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T09:31:00Z",
+     "endTime": "2026-09-18T10:40:00Z",
+     "scheduledStartTime": "2026-09-18T09:31:00Z",
+     "scheduledEndTime": "2026-09-18T10:40:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:40:00Z",
+      "scheduledArrival": "2026-09-18T10:40:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "886118",
+     "displayName": "TER 886118",
+     "intermediateStops": [
+      {
+       "name": "Tain-l'Hermitage - Tournon",
+       "stopId": "fr-horaires-sncf_FR::LMU:63b92670-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 45.07217800000001,
+       "lon": 4.839708000000001,
+       "arrival": "2026-09-18T09:41:00Z",
+       "departure": "2026-09-18T09:42:00Z",
+       "scheduledArrival": "2026-09-18T09:41:00Z",
+       "scheduledDeparture": "2026-09-18T09:42:00Z",
+       "modes": [
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      },
+      {
+       "name": "Saint-Vallier sur Rhône",
+       "stopId": "fr-horaires-sncf_FR::LMU:63bbe590-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 45.185678,
+       "lon": 4.814302,
+       "arrival": "2026-09-18T09:50:00Z",
+       "departure": "2026-09-18T09:51:00Z",
+       "scheduledArrival": "2026-09-18T09:50:00Z",
+       "scheduledDeparture": "2026-09-18T09:51:00Z",
+       "modes": [
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      }
+     ]
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:40:00Z",
+      "departure": "2026-09-18T10:40:00Z",
+      "scheduledArrival": "2026-09-18T10:40:00Z",
+      "scheduledDeparture": "2026-09-18T10:40:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:42:00Z",
+      "scheduledArrival": "2026-09-18T10:42:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T10:40:00Z",
+     "endTime": "2026-09-18T10:42:00Z",
+     "scheduledStartTime": "2026-09-18T10:40:00Z",
+     "scheduledEndTime": "2026-09-18T10:42:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "departure": "2026-09-18T12:00:00Z",
+      "scheduledDeparture": "2026-09-18T12:00:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Aéroport Charles de Gaulle 2 TGV",
+      "stopId": "fr-horaires-sncf_FR::LMO:aae2c560-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 49.003618,
+      "lon": 2.5708119999999997,
+      "arrival": "2026-09-18T14:02:00Z",
+      "scheduledArrival": "2026-09-18T14:02:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL"
+      ]
+     },
+     "startTime": "2026-09-18T12:00:00Z",
+     "endTime": "2026-09-18T14:02:00Z",
+     "scheduledStartTime": "2026-09-18T12:00:00Z",
+     "scheduledEndTime": "2026-09-18T14:02:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "Lille Europe",
+      "stopId": "fr-horaires-sncf_FR::LMO:e10cc9b0-84ed-11ec-a3ea-15fe8ae13b86:",
+      "lat": 50.6394,
+      "lon": 3.075721,
+      "arrival": "2026-09-18T15:04:00Z",
+      "scheduledArrival": "2026-09-18T15:04:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "SUBWAY",
+       "TRAM",
+       "BUS"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "12566",
+     "displayName": "TGV INOUI 12566",
+     "intermediateStops": [
+      {
+       "name": "Marne-la-Vallée Chessy",
+       "stopId": "fr-horaires-sncf_FR::LMO:90f22560-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 48.869898,
+       "lon": 2.782626,
+       "arrival": "2026-09-18T13:47:00Z",
+       "departure": "2026-09-18T13:51:00Z",
+       "scheduledArrival": "2026-09-18T13:47:00Z",
+       "scheduledDeparture": "2026-09-18T13:51:00Z",
+       "modes": [
+        "HIGHSPEED_RAIL",
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      }
+     ]
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Aéroport Charles de Gaulle 2 TGV",
+      "stopId": "fr-horaires-sncf_FR::LMO:aae2c560-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 49.003618,
+      "lon": 2.5708119999999997,
+      "arrival": "2026-09-18T14:02:00Z",
+      "departure": "2026-09-18T14:02:00Z",
+      "scheduledArrival": "2026-09-18T14:02:00Z",
+      "scheduledDeparture": "2026-09-18T14:02:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL"
+      ]
+     },
+     "to": {
+      "name": "Aéroport Charles de Gaulle 2 TGV",
+      "stopId": "fr-horaires-sncf_FR::LMO:aae2c560-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 49.003618,
+      "lon": 2.5708119999999997,
+      "arrival": "2026-09-18T14:04:00Z",
+      "scheduledArrival": "2026-09-18T14:04:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL"
+      ]
+     },
+     "startTime": "2026-09-18T14:02:00Z",
+     "endTime": "2026-09-18T14:04:00Z",
+     "scheduledStartTime": "2026-09-18T14:02:00Z",
+     "scheduledEndTime": "2026-09-18T14:04:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Aéroport Charles de Gaulle 2 TGV",
+      "stopId": "fr-horaires-sncf_FR::LMO:aae2c560-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 49.003618,
+      "lon": 2.5708119999999997,
+      "departure": "2026-09-18T15:29:00Z",
+      "scheduledDeparture": "2026-09-18T15:29:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL"
+      ]
+     },
+     "to": {
+      "name": "Strasbourg",
+      "stopId": "fr-horaires-sncf_FR::LMU:6a30e1a0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 48.58511000000001,
+      "lon": 7.733882,
+      "arrival": "2026-09-18T17:33:00Z",
+      "scheduledArrival": "2026-09-18T17:33:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "TRAM",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T15:32:00Z",
+     "endTime": "2026-09-18T17:36:00Z",
+     "scheduledStartTime": "2026-09-18T15:29:00Z",
+     "scheduledEndTime": "2026-09-18T17:33:00Z",
+     "realTime": true,
+     "headsign": "",
+     "tripTo": {
+      "name": "Strasbourg",
+      "stopId": "fr-horaires-sncf_FR::LMU:6a30e1a0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 48.58511000000001,
+      "lon": 7.733882,
+      "arrival": "2026-09-18T17:33:00Z",
+      "scheduledArrival": "2026-09-18T17:33:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "TRAM",
+       "BUS"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "5480",
+     "displayName": "TGV INOUI 5480",
+     "intermediateStops": [
+      {
+       "name": "Champagne-Ardenne TGV",
+       "stopId": "fr-horaires-sncf_FR::LMO:b1ee8330-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 49.214769,
+       "lon": 3.994523,
+       "arrival": "2026-09-18T16:00:00Z",
+       "departure": "2026-09-18T16:09:00Z",
+       "scheduledArrival": "2026-09-18T16:00:00Z",
+       "scheduledDeparture": "2026-09-18T16:09:00Z",
+       "modes": [
+        "HIGHSPEED_RAIL",
+        "REGIONAL_RAIL",
+        "SUBWAY",
+        "BUS"
+       ]
+      },
+      {
+       "name": "Lorraine TGV",
+       "stopId": "fr-horaires-sncf_FR::LMO:a0095dc0-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 48.947713,
+       "lon": 6.169778,
+       "arrival": "2026-09-18T16:48:00Z",
+       "departure": "2026-09-18T16:54:00Z",
+       "scheduledArrival": "2026-09-18T16:48:00Z",
+       "scheduledDeparture": "2026-09-18T16:54:00Z",
+       "modes": [
+        "HIGHSPEED_RAIL",
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "duration": 26700,
+   "startTime": "2026-09-18T07:42:00Z",
+   "endTime": "2026-09-18T15:07:00Z",
+   "transfers": 4,
+   "legs": [
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "START",
+      "lat": 44.7531,
+      "lon": 5.3703,
+      "departure": "2026-09-18T07:42:00Z",
+      "scheduledDeparture": "2026-09-18T07:42:00Z"
+     },
+     "to": {
+      "name": "Die",
+      "stopId": "fr-horaires-sncf_FR::LMU:639b8c50-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.758238000000006,
+      "lon": 5.363219,
+      "arrival": "2026-09-18T07:57:00Z",
+      "scheduledArrival": "2026-09-18T07:57:00Z",
+      "modes": [
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T07:42:00Z",
+     "endTime": "2026-09-18T07:57:00Z",
+     "scheduledStartTime": "2026-09-18T07:42:00Z",
+     "scheduledEndTime": "2026-09-18T07:57:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "BUS",
+     "from": {
+      "name": "Die",
+      "stopId": "fr-horaires-sncf_FR::LMU:639b8c50-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.758238000000006,
+      "lon": 5.363219,
+      "departure": "2026-09-18T07:57:00Z",
+      "scheduledDeparture": "2026-09-18T07:57:00Z",
+      "modes": [
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Valence Gare Routière",
+      "stopId": "fr-horaires-sncf_FR::LMO:bbe6b290-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.927222,
+      "lon": 4.892222,
+      "arrival": "2026-09-18T09:15:00Z",
+      "scheduledArrival": "2026-09-18T09:15:00Z",
+      "modes": [
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T07:57:00Z",
+     "endTime": "2026-09-18T09:15:00Z",
+     "scheduledStartTime": "2026-09-18T07:57:00Z",
+     "scheduledEndTime": "2026-09-18T09:15:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "Valence Gare Routière",
+      "stopId": "fr-horaires-sncf_FR::LMO:bbe6b290-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.927222,
+      "lon": 4.892222,
+      "arrival": "2026-09-18T09:15:00Z",
+      "scheduledArrival": "2026-09-18T09:15:00Z",
+      "modes": [
+       "BUS"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "33158",
+     "displayName": "TER 33158",
+     "intermediateStops": [
+      {
+       "name": "Saillans",
+       "stopId": "fr-horaires-sncf_FR::LMU:6542fac0-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 44.694416000000004,
+       "lon": 5.194129999999999,
+       "arrival": "2026-09-18T08:17:00Z",
+       "departure": "2026-09-18T08:17:00Z",
+       "scheduledArrival": "2026-09-18T08:17:00Z",
+       "scheduledDeparture": "2026-09-18T08:17:00Z",
+       "modes": [
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      },
+      {
+       "name": "Crest",
+       "stopId": "fr-horaires-sncf_FR::LMU:639ec0a0-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 44.73019600000001,
+       "lon": 5.016106,
+       "arrival": "2026-09-18T08:40:00Z",
+       "departure": "2026-09-18T08:40:00Z",
+       "scheduledArrival": "2026-09-18T08:40:00Z",
+       "scheduledDeparture": "2026-09-18T08:40:00Z",
+       "modes": [
+        "LONG_DISTANCE",
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      }
+     ]
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Valence Gare Routière",
+      "stopId": "fr-horaires-sncf_FR::LMO:bbe6b290-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.927222,
+      "lon": 4.892222,
+      "arrival": "2026-09-18T09:15:00Z",
+      "departure": "2026-09-18T09:15:00Z",
+      "scheduledArrival": "2026-09-18T09:15:00Z",
+      "scheduledDeparture": "2026-09-18T09:15:00Z",
+      "modes": [
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Valence Ville",
+      "stopId": "fr-horaires-sncf_FR::LMU:63c1b1f0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.928081,
+      "lon": 4.893288,
+      "arrival": "2026-09-18T09:19:00Z",
+      "scheduledArrival": "2026-09-18T09:19:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T09:15:00Z",
+     "endTime": "2026-09-18T09:19:00Z",
+     "scheduledStartTime": "2026-09-18T09:15:00Z",
+     "scheduledEndTime": "2026-09-18T09:19:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Valence Ville",
+      "stopId": "fr-horaires-sncf_FR::LMU:63c1b1f0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 44.928081,
+      "lon": 4.893288,
+      "departure": "2026-09-18T09:31:00Z",
+      "scheduledDeparture": "2026-09-18T09:31:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:40:00Z",
+      "scheduledArrival": "2026-09-18T10:40:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T09:31:00Z",
+     "endTime": "2026-09-18T10:40:00Z",
+     "scheduledStartTime": "2026-09-18T09:31:00Z",
+     "scheduledEndTime": "2026-09-18T10:40:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:40:00Z",
+      "scheduledArrival": "2026-09-18T10:40:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "886118",
+     "displayName": "TER 886118",
+     "intermediateStops": [
+      {
+       "name": "Tain-l'Hermitage - Tournon",
+       "stopId": "fr-horaires-sncf_FR::LMU:63b92670-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 45.07217800000001,
+       "lon": 4.839708000000001,
+       "arrival": "2026-09-18T09:41:00Z",
+       "departure": "2026-09-18T09:42:00Z",
+       "scheduledArrival": "2026-09-18T09:41:00Z",
+       "scheduledDeparture": "2026-09-18T09:42:00Z",
+       "modes": [
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      },
+      {
+       "name": "Saint-Vallier sur Rhône",
+       "stopId": "fr-horaires-sncf_FR::LMU:63bbe590-cb0a-11e8-8bfa-f784c1c7c611:",
+       "lat": 45.185678,
+       "lon": 4.814302,
+       "arrival": "2026-09-18T09:50:00Z",
+       "departure": "2026-09-18T09:51:00Z",
+       "scheduledArrival": "2026-09-18T09:50:00Z",
+       "scheduledDeparture": "2026-09-18T09:51:00Z",
+       "modes": [
+        "REGIONAL_RAIL",
+        "BUS"
+       ]
+      }
+     ]
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Lyon Part Dieu",
+      "stopId": "fr-horaires-sncf_FR::LMU:6af3bc70-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 45.76059600000001,
+      "lon": 4.859409,
+      "arrival": "2026-09-18T10:40:00Z",
+      "departure": "2026-09-18T10:40:00Z",
+      "scheduledArrival": "2026-09-18T10:40:00Z",
+      "scheduledDeparture": "2026-09-18T10:40:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "LYON-PART-DIEU",
+      "stopId": "it-trenitalia_IT::Quay:railTRENITALIA:870072319",
+      "lat": 45.76027800000001,
+      "lon": 4.860278,
+      "arrival": "2026-09-18T10:42:00Z",
+      "scheduledArrival": "2026-09-18T10:42:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T10:40:00Z",
+     "endTime": "2026-09-18T10:42:00Z",
+     "scheduledStartTime": "2026-09-18T10:40:00Z",
+     "scheduledEndTime": "2026-09-18T10:42:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "LYON-PART-DIEU",
+      "stopId": "it-trenitalia_IT::Quay:railTRENITALIA:870072319",
+      "lat": 45.76027800000001,
+      "lon": 4.860278,
+      "departure": "2026-09-18T11:00:00Z",
+      "scheduledDeparture": "2026-09-18T11:00:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "PARIS GARE DE LYON",
+      "stopId": "it-trenitalia_IT::Quay:railTRENITALIA:870068600",
+      "lat": 48.843610999999996,
+      "lon": 2.3744439999999996,
+      "arrival": "2026-09-18T12:56:00Z",
+      "scheduledArrival": "2026-09-18T12:56:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE"
+      ]
+     },
+     "startTime": "2026-09-18T11:00:00Z",
+     "endTime": "2026-09-18T12:56:00Z",
+     "scheduledStartTime": "2026-09-18T11:00:00Z",
+     "scheduledEndTime": "2026-09-18T12:56:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "PARIS GARE DE LYON",
+      "stopId": "it-trenitalia_IT::Quay:railTRENITALIA:870068600",
+      "lat": 48.843610999999996,
+      "lon": 2.3744439999999996,
+      "arrival": "2026-09-18T12:56:00Z",
+      "scheduledArrival": "2026-09-18T12:56:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE"
+      ]
+     },
+     "routeShortName": "FR",
+     "tripShortName": "0",
+     "displayName": "FR 6654",
+     "intermediateStops": []
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "PARIS GARE DE LYON",
+      "stopId": "it-trenitalia_IT::Quay:railTRENITALIA:870068600",
+      "lat": 48.843610999999996,
+      "lon": 2.3744439999999996,
+      "arrival": "2026-09-18T12:56:00Z",
+      "departure": "2026-09-18T12:56:00Z",
+      "scheduledArrival": "2026-09-18T12:56:00Z",
+      "scheduledDeparture": "2026-09-18T12:56:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "LONG_DISTANCE"
+      ]
+     },
+     "to": {
+      "name": "Gare de Lyon",
+      "stopId": "fr-reseau-urbain-et-interurbain-dile-de-france-mobilites_IDFM:monomodalStopPlace:470195",
+      "lat": 48.843402999999995,
+      "lon": 2.3763656999999996,
+      "arrival": "2026-09-18T12:58:00Z",
+      "scheduledArrival": "2026-09-18T12:58:00Z",
+      "modes": [
+       "REGIONAL_RAIL",
+       "SUBWAY",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T12:56:00Z",
+     "endTime": "2026-09-18T12:58:00Z",
+     "scheduledStartTime": "2026-09-18T12:56:00Z",
+     "scheduledEndTime": "2026-09-18T12:58:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "REGIONAL_RAIL",
+     "from": {
+      "name": "Gare de Lyon",
+      "stopId": "fr-reseau-urbain-et-interurbain-dile-de-france-mobilites_IDFM:monomodalStopPlace:470195",
+      "lat": 48.843402999999995,
+      "lon": 2.3763656999999996,
+      "departure": "2026-09-18T12:59:00Z",
+      "scheduledDeparture": "2026-09-18T12:59:00Z",
+      "modes": [
+       "REGIONAL_RAIL",
+       "SUBWAY",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Gare du Nord",
+      "stopId": "fr-reseau-urbain-et-interurbain-dile-de-france-mobilites_IDFM:monomodalStopPlace:462394",
+      "lat": 48.882305,
+      "lon": 2.3566934999999996,
+      "arrival": "2026-09-18T13:06:00Z",
+      "scheduledArrival": "2026-09-18T13:06:00Z",
+      "modes": [
+       "REGIONAL_RAIL",
+       "SUBWAY",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T12:59:00Z",
+     "endTime": "2026-09-18T13:06:00Z",
+     "scheduledStartTime": "2026-09-18T12:59:00Z",
+     "scheduledEndTime": "2026-09-18T13:06:00Z",
+     "realTime": false,
+     "headsign": "LOPA",
+     "tripTo": {
+      "name": "Orry-la-Ville - Coye",
+      "stopId": "fr-reseau-urbain-et-interurbain-dile-de-france-mobilites_IDFM:monomodalStopPlace:411421",
+      "lat": 49.138405000000006,
+      "lon": 2.4898621999999997,
+      "arrival": "2026-09-18T13:51:00Z",
+      "scheduledArrival": "2026-09-18T13:51:00Z",
+      "modes": [
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "routeShortName": "D",
+     "tripShortName": "128612-128613",
+     "displayName": "D",
+     "intermediateStops": [
+      {
+       "name": "Châtelet - Les Halles",
+       "stopId": "fr-reseau-urbain-et-interurbain-dile-de-france-mobilites_IDFM:monomodalStopPlace:45102",
+       "lat": 48.861743999999995,
+       "lon": 2.3469765,
+       "arrival": "2026-09-18T13:02:00Z",
+       "departure": "2026-09-18T13:03:00Z",
+       "scheduledArrival": "2026-09-18T13:02:00Z",
+       "scheduledDeparture": "2026-09-18T13:03:00Z",
+       "modes": [
+        "REGIONAL_RAIL"
+       ]
+      }
+     ]
+    },
+    {
+     "mode": "WALK",
+     "from": {
+      "name": "Gare du Nord",
+      "stopId": "fr-reseau-urbain-et-interurbain-dile-de-france-mobilites_IDFM:monomodalStopPlace:462394",
+      "lat": 48.882305,
+      "lon": 2.3566934999999996,
+      "arrival": "2026-09-18T13:06:00Z",
+      "departure": "2026-09-18T13:06:00Z",
+      "scheduledArrival": "2026-09-18T13:06:00Z",
+      "scheduledDeparture": "2026-09-18T13:06:00Z",
+      "modes": [
+       "REGIONAL_RAIL",
+       "SUBWAY",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Paris Est",
+      "stopId": "fr-horaires-sncf_FR::LMU:6cbbab30-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 48.876742,
+      "lon": 2.358424,
+      "arrival": "2026-09-18T13:13:00Z",
+      "scheduledArrival": "2026-09-18T13:13:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T13:06:00Z",
+     "endTime": "2026-09-18T13:13:00Z",
+     "scheduledStartTime": "2026-09-18T13:06:00Z",
+     "scheduledEndTime": "2026-09-18T13:13:00Z",
+     "realTime": false
+    },
+    {
+     "mode": "HIGHSPEED_RAIL",
+     "from": {
+      "name": "Paris Est",
+      "stopId": "fr-horaires-sncf_FR::LMU:6cbbab30-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 48.876742,
+      "lon": 2.358424,
+      "departure": "2026-09-18T13:21:00Z",
+      "scheduledDeparture": "2026-09-18T13:21:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "BUS"
+      ]
+     },
+     "to": {
+      "name": "Strasbourg",
+      "stopId": "fr-horaires-sncf_FR::LMU:6a30e1a0-cb0a-11e8-8bfa-f784c1c7c611:",
+      "lat": 48.58511000000001,
+      "lon": 7.733882,
+      "arrival": "2026-09-18T15:07:00Z",
+      "scheduledArrival": "2026-09-18T15:07:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL",
+       "REGIONAL_RAIL",
+       "TRAM",
+       "BUS"
+      ]
+     },
+     "startTime": "2026-09-18T13:21:00Z",
+     "endTime": "2026-09-18T15:07:00Z",
+     "scheduledStartTime": "2026-09-18T13:21:00Z",
+     "scheduledEndTime": "2026-09-18T15:07:00Z",
+     "realTime": false,
+     "headsign": "",
+     "tripTo": {
+      "name": "Francfort sur le Main",
+      "stopId": "fr-horaires-sncf_FR::LMO:71ba90a0-3a69-11e9-8417-bb1d8a705241:",
+      "lat": 50.1073,
+      "lon": 8.662400000000002,
+      "arrival": "2026-09-18T17:13:00Z",
+      "scheduledArrival": "2026-09-18T17:13:00Z",
+      "modes": [
+       "HIGHSPEED_RAIL"
+      ]
+     },
+     "routeShortName": "",
+     "tripShortName": "9563",
+     "displayName": "ICE 9563",
+     "intermediateStops": []
+    }
+   ]
+  }
+ ],
+ "nextPageCursor": "LATER|1789717380"
+}

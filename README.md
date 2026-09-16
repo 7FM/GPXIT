@@ -6,7 +6,9 @@ Import your GPX route, and the app discovers train stations along your path. Whe
 
 ## Transit Provider
 
-The app currently uses **Deutsche Bahn (DB)** as the default transit provider via the [public-transport-enabler](https://github.com/schildbach/public-transport-enabler) library. DB covers German domestic and many international connections. The library supports 50+ European transit providers — adding a provider selection is planned for future versions.
+Stations and connections come from **Deutsche Bahn (DB)** via the [public-transport-enabler](https://github.com/schildbach/public-transport-enabler) library. DB covers German domestic and many international connections. Where DB's coverage is weak, the app also asks the national provider for that place — **Rejseplanen** (Denmark), **Resrobot** (Sweden) or **Traveline** (Great Britain) — and merges the results. Which providers to ask is decided from coverage data by [KPublicTransport](https://invent.kde.org/libraries/kpublictransport).
+
+Optionally (Settings → Transit data), the community-run **[Transitous](https://transitous.org)** service adds local transport in many more countries, e.g. trams and buses in France.
 
 ## Features
 
@@ -54,7 +56,7 @@ The flake provides: JDK 21, Gradle 8.12.1, Android SDK (platform 35, build-tools
 - No tracking, no analytics, no accounts
 - All data stays on your device
 - Location is used only to show your position on the map
-- Internet is used for map tiles (OpenStreetMap) and transit queries (Deutsche Bahn)
+- Internet is used for map tiles (OpenStreetMap) and transit queries (Deutsche Bahn; Rejseplanen, Resrobot or Traveline for places they cover; Transitous only if enabled)
 
 ## License
 

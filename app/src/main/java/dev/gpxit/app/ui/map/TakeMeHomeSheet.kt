@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.gpxit.app.domain.ConnectionOption
+import dev.gpxit.app.ui.components.TransitousAttribution
 import dev.gpxit.app.ui.import_route.DesignIcons
 import dev.gpxit.app.ui.theme.LocalMapPalette
 import kotlinx.coroutines.launch
@@ -157,11 +158,18 @@ fun TakeMeHomeSheet(
                     modifier = Modifier.padding(vertical = 16.dp),
                 )
             }
-            else -> HomeCarousel(
-                options = options,
-                onStationSelected = onStationSelected,
-                onCurrentPageChanged = onCurrentPageChanged,
-            )
+            else -> {
+                HomeCarousel(
+                    options = options,
+                    onStationSelected = onStationSelected,
+                    onCurrentPageChanged = onCurrentPageChanged,
+                )
+                TransitousAttribution(
+                    connections = options.flatMap { it.connections },
+                    color = palette.inkSoft,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }

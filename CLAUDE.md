@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GPXIT is an Android app for cyclists who plan one-way bike routes (e.g. via Komoot) and need to take a train home. The app imports a GPX route, discovers train stations along it, and shows live train connections home — helping decide whether to stop now or ride to the next station.
 
-Default transit provider: Deutsche Bahn (`DbProvider`) — covers German and many international connections. The `public-transport-enabler` library supports 50+ European providers; adding provider selection is a future task.
+Transit data comes from several backends (`data/transit/`): Deutsche Bahn (`DbProvider`) everywhere it covers, national PTE providers (DSB, Resrobot, Traveline) where DB is weak, and optionally Transitous (own MOTIS client, opt-in setting). `TransitBackendRegistry` picks the backends per place / trip from KPublicTransport's coverage data (`assets/transit/coverage.json`, regenerate with `scripts/import_kpt_coverage.py`); results are merged and de-duplicated.
 
 Package: `dev.gpxit.app` | Min SDK 26 | Target SDK 35 | Kotlin + Jetpack Compose
 
@@ -44,7 +44,7 @@ Flavor-specific source: `app/src/foss/` and `app/src/full/` (only `LocationServi
 Single-module app, MVVM with ViewModels and Compose. No DI framework — manual construction.
 
 ### Key libraries
-- **public-transport-enabler** (JitPack) — queries Deutsche Bahn for nearby stations and connections. Uses `DbProvider`.
+- **public-transport-enabler** (JitPack) — queries Deutsche Bahn (`DbProvider`) and the national providers for nearby stations and connections, wrapped in `PteBackend`.
 - **android-gpx-parser** (JitPack) — parses GPX 1.1 files.
 - **osmdroid** — OpenStreetMap tiles, wrapped in `AndroidView` for Compose. Custom `OsmTileSource` (in `data/OsmTileSource.kt`) used for both display and offline download.
 - **DataStore Preferences** — persists user settings.
@@ -59,7 +59,7 @@ Single-module app, MVVM with ViewModels and Compose. No DI framework — manual 
 ### Package layout
 ```
 data/gpx/           — GpxParser + haversine/geo utilities
-data/transit/        — TransitRepository (public-transport-enabler wrapper)
+data/transit/        — TransitRepository (facade), TransitBackendRegistry, PteBackend, TransitousBackend, station/trip matching
 data/prefs/          — PrefsRepository (DataStore)
 data/                — RouteStorage, MapTileDownloader, OsmTileSource
 domain/              — RoutePoint, RouteInfo, StationCandidate, ConnectionOption

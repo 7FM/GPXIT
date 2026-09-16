@@ -1,0 +1,79 @@
+[
+ {
+  "type": "STOP",
+  "name": "Strasbourg",
+  "id": "de-DELFI_fr:24067:1284",
+  "lat": 48.58534,
+  "lon": 7.7340670000000005,
+  "level": -4.0,
+  "country": "FR",
+  "zip": "67000",
+  "tz": "Europe/Paris",
+  "score": -21.273712158203125,
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "REGIONAL_RAIL",
+   "TRAM",
+   "BUS"
+  ],
+  "importance": 0.0051473937928676605
+ },
+ {
+  "type": "STOP",
+  "name": "Strasbourg",
+  "id": "eu-flixbus_dcbac843-9603-11e6-9066-549f350fcb0c",
+  "lat": 48.57418,
+  "lon": 7.754266,
+  "country": "FR",
+  "zip": "67000;67100;67200",
+  "tz": "Europe/Paris",
+  "score": -20.27886199951172,
+  "modes": [
+   "COACH"
+  ],
+  "importance": 0.0008558094850741327
+ },
+ {
+  "type": "STOP",
+  "name": "Strasbourg",
+  "id": "fr-agglobus-offre-theorique-mobilite-reseau-urbain-de-bourges_COM_boustra2",
+  "lat": 47.080963,
+  "lon": 2.40578,
+  "country": "FR",
+  "zip": "18000",
+  "tz": "Europe/Paris",
+  "score": -19.100000381469727,
+  "modes": [
+   "BUS"
+  ],
+  "importance": 2.3912057258712593e-06
+ },
+ {
+  "type": "STOP",
+  "name": "Strasbourg",
+  "id": "fr-agregat-des-reseaux-urbains-et-interurbains-en-region-grand-est_ST:1379",
+  "lat": 49.095486,
+  "lon": 6.727615999999999,
+  "country": "FR",
+  "zip": "57730",
+  "tz": "Europe/Paris",
+  "score": -19.100000381469727,
+  "modes": [],
+  "importance": 0.0
+ },
+ {
+  "type": "STOP",
+  "name": "STRASBOURG",
+  "id": "fr-offre-de-transport-du-reseau-grand-reims-mobilites-communaute-urbaine-du-grand-reims_103284",
+  "lat": 49.257736,
+  "lon": 4.051673000000001,
+  "country": "FR",
+  "zip": "51100",
+  "tz": "Europe/Paris",
+  "score": -19.100000381469727,
+  "modes": [
+   "BUS"
+  ],
+  "importance": 1.4616952057622257e-06
+ }
+]

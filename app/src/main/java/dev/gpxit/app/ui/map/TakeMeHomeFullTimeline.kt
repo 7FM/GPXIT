@@ -126,8 +126,10 @@ fun TakeMeHomeFullTimeline(
                 start = 14.dp, end = 14.dp, top = 10.dp, bottom = 20.dp + navBarBottom,
             ),
         ) {
-            items(items = options, key = { it.station.id }) { opt ->
-                val isOpen = expanded[opt.station.id] == true
+            // Station ids are only unique per transit backend.
+            items(items = options, key = { "${it.station.backendId}:${it.station.id}" }) { opt ->
+                val stationKey = "${opt.station.backendId}:${opt.station.id}"
+                val isOpen = expanded[stationKey] == true
                 val isBest = opt.isRecommended
                 val isLast = opt === options.lastOrNull()
                 TimelineRow(
@@ -136,7 +138,7 @@ fun TakeMeHomeFullTimeline(
                     isExpanded = isOpen,
                     isLast = isLast,
                     onToggle = {
-                        expanded[opt.station.id] = !(expanded[opt.station.id] ?: false)
+                        expanded[stationKey] = !(expanded[stationKey] ?: false)
                     },
                     onSelectStation = { onStationSelected(opt) },
                 )

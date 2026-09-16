@@ -48,12 +48,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.gpxit.app.data.prefs.PrefsRepository
-import dev.gpxit.app.data.transit.TransitRepository
+import dev.gpxit.app.data.transit.StationSuggestion
+import dev.gpxit.app.data.transit.TransitousBackend
 import dev.gpxit.app.ui.import_route.DesignIcons
 import dev.gpxit.app.ui.theme.LocalMapPalette
 import dev.gpxit.app.ui.theme.rememberMapPalette
@@ -73,7 +75,7 @@ private val ALL_PRODUCTS = listOf(
 @Composable
 fun SettingsScreen(
     prefsFlow: StateFlow<PrefsRepository.UserPreferences>,
-    onSetHomeStation: (TransitRepository.StationSuggestion) -> Unit,
+    onSetHomeStation: (StationSuggestion) -> Unit,
     onSetSpeed: (Double) -> Unit,
     onSetSearchRadius: (Int) -> Unit,
     onQueryChanged: (String) -> Unit,
@@ -89,8 +91,9 @@ fun SettingsScreen(
     poiDbDownloadState: dev.gpxit.app.GpxitDownloadState,
     poiDbAvailable: Boolean,
     onSetTripTrackingEnabled: (Boolean) -> Unit,
+    onSetTransitousEnabled: (Boolean) -> Unit,
     onSetThemeMode: (dev.gpxit.app.ui.theme.ThemeMode) -> Unit,
-    stationSuggestions: List<TransitRepository.StationSuggestion>,
+    stationSuggestions: List<StationSuggestion>,
     komootStateFlow: StateFlow<KomootSettingsState>,
     onKomootEmailChange: (String) -> Unit,
     onKomootPasswordChange: (String) -> Unit,
@@ -199,7 +202,10 @@ fun SettingsScreen(
                                         }
                                         .padding(12.dp),
                                 ) {
-                                    Text(text = s.name, color = palette.ink, fontSize = 13.sp)
+                                    Column {
+                                        Text(text = s.name, color = palette.ink, fontSize = 13.sp)
+                                        Text(text = s.backendName, color = palette.inkSoft, fontSize = 11.sp)
+                                    }
                                 }
                             }
                         }
@@ -239,6 +245,24 @@ fun SettingsScreen(
                         options = ALL_PRODUCTS,
                         selected = prefs.connectionProducts,
                         onToggle = onToggleConnectionProduct,
+                    )
+                }
+
+                // Transit data sources
+                AccordionGroup(
+                    id = "sources",
+                    title = "Transit data",
+                    summary = if (prefs.transitousEnabled) "DB, national providers, Transitous"
+                        else "DB, national providers",
+                    icon = DesignIcons.Layers,
+                    isOpen = openGroup == "sources",
+                    onToggle = {
+                        openGroup = if (openGroup == "sources") null else "sources"
+                    },
+                ) {
+                    TransitSourcesSettings(
+                        transitousEnabled = prefs.transitousEnabled,
+                        onSetTransitousEnabled = onSetTransitousEnabled,
                     )
                 }
 
@@ -785,6 +809,63 @@ private fun SliderClassic(
                 disabledActiveTrackColor = Color.Transparent,
                 disabledInactiveTrackColor = Color.Transparent,
             ),
+        )
+    }
+}
+
+/**
+ * Which transit backends are asked. Deutsche Bahn and the national providers
+ * are picked automatically by coverage; Transitous is opt-in because it is a
+ * volunteer-run third-party service.
+ */
+@Composable
+private fun TransitSourcesSettings(
+    transitousEnabled: Boolean,
+    onSetTransitousEnabled: (Boolean) -> Unit,
+) {
+    val palette = LocalMapPalette.current
+    val uriHandler = LocalUriHandler.current
+    Column {
+        Text(
+            text = "Stations and connections come from Deutsche Bahn, and for places it " +
+                "covers poorly also from Rejseplanen (Denmark), Resrobot (Sweden) or " +
+                "Traveline (Great Britain).",
+            color = palette.inkSoft,
+            fontSize = 11.sp,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Use Transitous",
+                color = palette.ink,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
+            )
+            SettingsToggle(
+                on = transitousEnabled,
+                onChange = onSetTransitousEnabled,
+                small = true,
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Community-run routing service with local transport in many more " +
+                "countries (e.g. trams and buses in France). When enabled, points along " +
+                "your route, station searches and connection requests are also sent to " +
+                "api.transitous.org.",
+            color = palette.inkSoft,
+            fontSize = 11.sp,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Transitous data sources",
+            color = palette.accent,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clickable { uriHandler.openUri(TransitousBackend.SOURCES_URL) },
         )
     }
 }

@@ -1,0 +1,234 @@
+[
+ {
+  "name": "Strasbourg (FR)",
+  "stopId": "be-sncb_8721202",
+  "importance": 3.6252362178856856e-07,
+  "lat": 48.585438,
+  "lon": 7.733903000000001,
+  "level": 1.0,
+  "tz": "Europe/Paris",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "REGIONAL_RAIL"
+  ]
+ },
+ {
+  "name": "Strasbourg Bahnhof",
+  "stopId": "de-DELFI_fr:24067:1284",
+  "importance": 0.0051473937928676605,
+  "lat": 48.58534,
+  "lon": 7.7340670000000005,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "REGIONAL_RAIL"
+  ]
+ },
+ {
+  "name": "Strasbourg Bahnhof",
+  "stopId": "de-DELFI_fr:24067:1284:3:t1",
+  "importance": 0.0051473937928676605,
+  "lat": 48.584934,
+  "lon": 7.735294000000001,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "TRAM"
+  ]
+ },
+ {
+  "name": "Strasbourg Bahnhof",
+  "stopId": "de-DELFI_fr:24067:1284:3:t2",
+  "importance": 0.0051473937928676605,
+  "lat": 48.584976,
+  "lon": 7.735294000000001,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "TRAM"
+  ]
+ },
+ {
+  "name": "Strasbourg",
+  "stopId": "fr-horaires-theoriques-de-loffre-du-reseau-ferre-regional-de-transport_StopPoint:OCETrain TER-87212027",
+  "parentId": "fr-horaires-theoriques-de-loffre-du-reseau-ferre-regional-de-transport_StopArea:OCE87212027",
+  "importance": 0.0051473937928676605,
+  "lat": 48.58511000000001,
+  "lon": 7.733882,
+  "level": 1.0,
+  "tz": "Europe/Paris",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "REGIONAL_RAIL"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_10",
+  "importance": 0.0003834600793197751,
+  "lat": 48.585083,
+  "lon": 7.7350270000000005,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230D",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "TRAM"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_20",
+  "importance": 0.0003834600793197751,
+  "lat": 48.58469399999999,
+  "lon": 7.7351174,
+  "level": 0.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230R",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACTN_04",
+  "importance": 0.0003834600793197751,
+  "lat": 48.58469399999999,
+  "lon": 7.7351174,
+  "level": 0.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230Y",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_01",
+  "importance": 0.0003834600793197751,
+  "lat": 48.585003,
+  "lon": 7.735125,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230E",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_03",
+  "importance": 0.0003834600793197751,
+  "lat": 48.585003,
+  "lon": 7.735125,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230E",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACTN_01",
+  "importance": 0.0003834600793197751,
+  "lat": 48.585003,
+  "lon": 7.735125,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230X",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_09",
+  "importance": 0.0003834600793197751,
+  "lat": 48.58484299999999,
+  "lon": 7.7354946,
+  "level": -4.0,
+  "tz": "Europe/Paris",
+  "stopCode": "230C",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "TRAM"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_07",
+  "importance": 0.0003834600793197751,
+  "lat": 48.58526,
+  "lon": 7.7355347,
+  "tz": "Europe/Paris",
+  "stopCode": "230M",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_06",
+  "importance": 0.0003834600793197751,
+  "lat": 48.58548,
+  "lon": 7.735625300000001,
+  "tz": "Europe/Paris",
+  "stopCode": "230L",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Gare Centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_11",
+  "importance": 0.0003834600793197751,
+  "lat": 48.585716000000005,
+  "lon": 7.735804,
+  "tz": "Europe/Paris",
+  "stopCode": "230G",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "TRAM"
+  ]
+ },
+ {
+  "name": "Gare centrale",
+  "stopId": "fr-donnees-theoriques-gtfs-et-temps-reel-siri-lite-du-reseau-cts_GACEN_24",
+  "importance": 0.0003834600793197751,
+  "lat": 48.58541,
+  "lon": 7.7359586,
+  "tz": "Europe/Paris",
+  "stopCode": "230U",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "BUS"
+  ]
+ },
+ {
+  "name": "Strasbourg",
+  "stopId": "fr-horaires-sncf_FR::LMU:6a30e1a0-cb0a-11e8-8bfa-f784c1c7c611:",
+  "importance": 0.0051473937928676605,
+  "lat": 48.58511000000001,
+  "lon": 7.733882,
+  "level": 1.0,
+  "tz": "Europe/Paris",
+  "vertexType": "TRANSIT",
+  "modes": [
+   "HIGHSPEED_RAIL",
+   "REGIONAL_RAIL",
+   "BUS"
+  ]
+ }
+]

@@ -7,6 +7,7 @@ import dev.gpxit.app.data.komoot.KomootApi
 import dev.gpxit.app.data.komoot.KomootCredentialStore
 import dev.gpxit.app.data.komoot.KomootError
 import dev.gpxit.app.data.prefs.PrefsRepository
+import dev.gpxit.app.data.transit.StationSuggestion
 import dev.gpxit.app.data.transit.TransitRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefsRepository = PrefsRepository(application)
-    private val transitRepository = TransitRepository()
+    private val transitRepository = TransitRepository(application)
     private val komootCredentialStore = KomootCredentialStore(application)
     private val komootApi = KomootApi(userAgent = "GPXIT/0.1.0 (+https://github.com/7FM/GPXIT)")
 
@@ -45,8 +46,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val preferences: StateFlow<PrefsRepository.UserPreferences> = prefsRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PrefsRepository.UserPreferences())
 
-    private val _stationSuggestions = MutableStateFlow<List<TransitRepository.StationSuggestion>>(emptyList())
-    val stationSuggestions: StateFlow<List<TransitRepository.StationSuggestion>> = _stationSuggestions
+    private val _stationSuggestions = MutableStateFlow<List<StationSuggestion>>(emptyList())
+    val stationSuggestions: StateFlow<List<StationSuggestion>> = _stationSuggestions
 
     private var searchJob: Job? = null
 
@@ -66,10 +67,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun setHomeStation(suggestion: TransitRepository.StationSuggestion) {
+    fun setHomeStation(suggestion: StationSuggestion) {
         viewModelScope.launch {
-            prefsRepository.setHomeStation(suggestion.id, suggestion.name, suggestion.lat, suggestion.lon)
+            prefsRepository.setHomeStation(
+                suggestion.id, suggestion.name, suggestion.lat, suggestion.lon, suggestion.backendId
+            )
             _stationSuggestions.value = emptyList()
+        }
+    }
+
+    fun setTransitousEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepository.setTransitousEnabled(enabled)
         }
     }
 

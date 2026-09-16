@@ -117,6 +117,12 @@ class RouteStorage(private val context: Context) {
                 put("distanceAlongRoute", s.distanceAlongRouteMeters)
                 put("distanceFromRoute", s.distanceFromRouteMeters)
                 put("products", JSONArray(s.products.toList()))
+                put("backend", s.backendId)
+                if (s.alternateIds.isNotEmpty()) {
+                    put("alt_ids", JSONObject().apply {
+                        for ((backend, id) in s.alternateIds) put(backend, id)
+                    })
+                }
             })
         }
         file.writeText(arr.toString())
@@ -132,6 +138,9 @@ class RouteStorage(private val context: Context) {
                 val products = if (productsArr != null) {
                     (0 until productsArr.length()).map { productsArr.getString(it) }.toSet()
                 } else emptySet()
+                val alternateIds = obj.optJSONObject("alt_ids")?.let { ids ->
+                    ids.keys().asSequence().associateWith { ids.getString(it) }
+                } ?: emptyMap()
                 StationCandidate(
                     id = obj.getString("id"),
                     name = obj.getString("name"),
@@ -139,7 +148,10 @@ class RouteStorage(private val context: Context) {
                     lon = obj.getDouble("lon"),
                     distanceAlongRouteMeters = obj.getDouble("distanceAlongRoute"),
                     distanceFromRouteMeters = obj.getDouble("distanceFromRoute"),
-                    products = products
+                    products = products,
+                    // Files from before multi-backend support only hold DB stations.
+                    backendId = obj.optString("backend").ifEmpty { "db" },
+                    alternateIds = alternateIds,
                 )
             }
         } catch (_: Exception) {

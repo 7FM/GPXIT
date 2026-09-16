@@ -21,6 +21,8 @@ class PrefsRepository(private val context: Context) {
         val HOME_STATION_NAME = stringPreferencesKey("home_station_name")
         val HOME_STATION_LAT = doublePreferencesKey("home_station_lat")
         val HOME_STATION_LON = doublePreferencesKey("home_station_lon")
+        val HOME_STATION_BACKEND = stringPreferencesKey("home_station_backend")
+        val TRANSITOUS_ENABLED = booleanPreferencesKey("transitous_enabled")
         val AVG_SPEED_KMH = doublePreferencesKey("avg_speed_kmh")
         val SEARCH_RADIUS_METERS = intPreferencesKey("search_radius_meters")
         val SAMPLING_INTERVAL_METERS = intPreferencesKey("sampling_interval_meters")
@@ -51,6 +53,14 @@ class PrefsRepository(private val context: Context) {
         val homeStationName: String? = null,
         val homeStationLat: Double? = null,
         val homeStationLon: Double? = null,
+        /** Transit backend that issued [homeStationId]; stations picked before multi-backend support are DB's. */
+        val homeStationBackend: String = "db",
+        /**
+         * Also ask Transitous (community-run, https://transitous.org) for
+         * stations and connections. Off by default: it's a third-party
+         * volunteer service that gets route sample points and trip requests.
+         */
+        val transitousEnabled: Boolean = false,
         val avgSpeedKmh: Double = 18.0,
         val searchRadiusMeters: Int = 2000,
         val samplingIntervalMeters: Int = 2000,
@@ -91,6 +101,8 @@ class PrefsRepository(private val context: Context) {
             homeStationName = prefs[HOME_STATION_NAME],
             homeStationLat = prefs[HOME_STATION_LAT],
             homeStationLon = prefs[HOME_STATION_LON],
+            homeStationBackend = prefs[HOME_STATION_BACKEND] ?: "db",
+            transitousEnabled = prefs[TRANSITOUS_ENABLED] ?: false,
             avgSpeedKmh = prefs[AVG_SPEED_KMH] ?: 18.0,
             searchRadiusMeters = prefs[SEARCH_RADIUS_METERS] ?: 2000,
             samplingIntervalMeters = prefs[SAMPLING_INTERVAL_METERS] ?: 2000,
@@ -118,13 +130,25 @@ class PrefsRepository(private val context: Context) {
         )
     }
 
-    suspend fun setHomeStation(id: String, name: String, lat: Double? = null, lon: Double? = null) {
+    suspend fun setHomeStation(
+        id: String,
+        name: String,
+        lat: Double? = null,
+        lon: Double? = null,
+        backendId: String = "db",
+    ) {
         context.dataStore.edit { prefs ->
             prefs[HOME_STATION_ID] = id
             prefs[HOME_STATION_NAME] = name
-            if (lat != null) prefs[HOME_STATION_LAT] = lat
-            if (lon != null) prefs[HOME_STATION_LON] = lon
+            prefs[HOME_STATION_BACKEND] = backendId
+            // Coordinates of a previous home station must not stick to a new one.
+            if (lat != null) prefs[HOME_STATION_LAT] = lat else prefs.remove(HOME_STATION_LAT)
+            if (lon != null) prefs[HOME_STATION_LON] = lon else prefs.remove(HOME_STATION_LON)
         }
+    }
+
+    suspend fun setTransitousEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[TRANSITOUS_ENABLED] = enabled }
     }
 
     suspend fun setAvgSpeed(kmh: Double) {
@@ -199,3 +223,11 @@ class PrefsRepository(private val context: Context) {
         context.dataStore.edit { it[THEME_MODE] = mode.name.lowercase() }
     }
 }
+
+/** The configured home station, or null if none is set. */
+val PrefsRepository.UserPreferences.homeStation: dev.gpxit.app.domain.HomeStation?
+    get() {
+        val id = homeStationId ?: return null
+        val name = homeStationName ?: return null
+        return dev.gpxit.app.domain.HomeStation(id, name, homeStationLat, homeStationLon, homeStationBackend)
+    }

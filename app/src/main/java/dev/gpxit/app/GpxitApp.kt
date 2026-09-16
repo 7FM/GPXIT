@@ -26,10 +26,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import de.schildbach.pte.dto.Product
 import dev.gpxit.app.data.gpx.findClosestPointIndex
 import dev.gpxit.app.data.location.LocationService
 import dev.gpxit.app.data.prefs.PrefsRepository
+import dev.gpxit.app.data.prefs.homeStation
+import dev.gpxit.app.data.transit.TransitMode
 import dev.gpxit.app.data.transit.TransitRepository
 import dev.gpxit.app.domain.ConnectionOption
 import dev.gpxit.app.domain.StationCandidate
@@ -46,7 +47,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.osmdroid.util.GeoPoint
 import java.time.Instant
-import java.util.EnumSet
 
 private suspend fun triggerDownload(
     routeInfo: dev.gpxit.app.domain.RouteInfo?,
@@ -89,19 +89,6 @@ private fun ConnectionOption.toHomeRecommendation():
     )
 }
 
-private fun buildConnectionProducts(productNames: Set<String>): Set<Product> {
-    val products = EnumSet.noneOf(Product::class.java)
-    for (name in productNames) {
-        try { products.add(Product.valueOf(name)) } catch (_: Exception) { }
-    }
-    if (products.isEmpty()) {
-        // Fallback: at least regional trains
-        products.add(Product.REGIONAL_TRAIN)
-        products.add(Product.SUBURBAN_TRAIN)
-    }
-    return products
-}
-
 @Composable
 fun GpxitApp(
     importViewModel: ImportViewModel = viewModel(),
@@ -111,7 +98,7 @@ fun GpxitApp(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val locationService = remember { LocationService(context) }
-    val transitRepository = remember { TransitRepository() }
+    val transitRepository = remember { TransitRepository(context) }
     val poiDatabase = remember { dev.gpxit.app.data.poi.PoiDatabase(context) }
     val poiDownloader = remember { dev.gpxit.app.data.poi.PoiDatasetDownloader(context) }
     val prefsRepository = remember { PrefsRepository(context) }
@@ -372,12 +359,11 @@ fun GpxitApp(
     }
 
     LaunchedEffect(prefs.homeStationId, prefs.homeStationLat) {
-        val id = prefs.homeStationId
-        val name = prefs.homeStationName
-        if (id != null && name != null && prefs.homeStationLat == null) {
-            val coords = transitRepository.resolveStationLocation(id, name)
+        val home = prefs.homeStation
+        if (home != null && home.lat == null) {
+            val coords = transitRepository.resolveStationLocation(home)
             if (coords != null) {
-                prefsRepository.setHomeStation(id, name, coords.first, coords.second)
+                prefsRepository.setHomeStation(home.id, home.name, coords.first, coords.second, home.backendId)
             }
         }
     }
@@ -535,9 +521,9 @@ fun GpxitApp(
                                     maxLocations = 30,
                                     requiredProducts = prefs.enabledProducts
                                 )
-                                // Merge with existing, deduplicate by ID
+                                // Merge with existing, deduplicate by backend + ID
                                 val merged = (nearbyStations + newStations)
-                                    .distinctBy { it.id }
+                                    .distinctBy { it.backendId to it.id }
                                 nearbyStations = merged
                                 routeStorage.saveNearbyStations(merged)
                             } catch (_: Exception) {
@@ -573,9 +559,8 @@ fun GpxitApp(
                             isLoadingStationInfo = true
                             selectedStationInfo = null
                             try {
-                                val homeId = prefs.homeStationId
-                                val homeName = prefs.homeStationName
-                                if (homeId == null || homeName == null) {
+                                val home = prefs.homeStation
+                                if (home == null) {
                                     isLoadingStationInfo = false
                                     return@launch
                                 }
@@ -616,15 +601,13 @@ fun GpxitApp(
                                     arrivalAtStation = now.plusSeconds((cyclingTimeMinutes * 60).toLong())
                                 }
 
-                                val products = buildConnectionProducts(prefs.connectionProducts)
+                                val modes = TransitMode.fromNames(prefs.connectionProducts)
                                 val rawConnections = try {
                                     transitRepository.queryConnections(
-                                        fromStationId = station.id,
-                                        fromStationName = station.name,
-                                        toStationId = homeId,
-                                        toStationName = homeName,
+                                        from = station,
+                                        home = home,
                                         departureTime = arrivalAtStation,
-                                        products = products
+                                        modes = modes
                                     )
                                 } catch (_: Exception) {
                                     emptyList()
@@ -657,18 +640,15 @@ fun GpxitApp(
                     onLoadMoreConnections = {
                         val info = selectedStationInfo ?: return@MapScreen
                         val lastConn = info.connections.lastOrNull() ?: return@MapScreen
-                        val homeId = prefs.homeStationId ?: return@MapScreen
-                        val homeName = prefs.homeStationName ?: return@MapScreen
+                        val home = prefs.homeStation ?: return@MapScreen
                         scope.launch {
                             try {
-                                val products = buildConnectionProducts(prefs.connectionProducts)
+                                val modes = TransitMode.fromNames(prefs.connectionProducts)
                                 val moreConnections = transitRepository.queryConnections(
-                                    fromStationId = info.station.id,
-                                    fromStationName = info.station.name,
-                                    toStationId = homeId,
-                                    toStationName = homeName,
+                                    from = info.station,
+                                    home = home,
                                     departureTime = lastConn.departureTime.plusSeconds(60),
-                                    products = products
+                                    modes = modes
                                 )
                                 val existingIds = info.connections.map { it.departureTime to it.line }.toSet()
                                 val newConns = moreConnections.filter {
@@ -740,6 +720,7 @@ fun GpxitApp(
                     poiDbDownloadState = poiDbState,
                     poiDbAvailable = poiDatabase.isAvailable(),
                     onSetTripTrackingEnabled = { settingsViewModel.setTripTrackingEnabled(it) },
+                    onSetTransitousEnabled = { settingsViewModel.setTransitousEnabled(it) },
                     onSetThemeMode = { settingsViewModel.setThemeMode(it) },
                     stationSuggestions = suggestions,
                     komootStateFlow = settingsViewModel.komootState,

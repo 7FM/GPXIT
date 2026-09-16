@@ -28,7 +28,9 @@ data class TrainConnection(
     val line: String,       // first leg line label, for summary display
     val numChanges: Int,
     val duration: Duration,
-    val legs: List<TripLeg> = emptyList()
+    val legs: List<TripLeg> = emptyList(),
+    /** Transit backend that found this connection. */
+    val backendId: String = "db",
 )
 
 data class ConnectionOption(
