@@ -124,8 +124,9 @@ class TransitRepository {
                                 departureTime = stop.getDepartureTime(true)?.toInstant()
                             )
                         } ?: emptyList()
-                        val depDelay = leg.getDepartureDelay()?.let { (it / 60).toInt() }
-                        val arrDelay = leg.getArrivalDelay()?.let { (it / 60).toInt() }
+                        // PTE reports delays in milliseconds
+                        val depDelay = leg.getDepartureDelay()?.let { (it / 60_000).toInt() }
+                        val arrDelay = leg.getArrivalDelay()?.let { (it / 60_000).toInt() }
                         TripLeg(
                             line = leg.line?.label,
                             direction = leg.destination?.name,
