@@ -65,8 +65,11 @@ jobs:
           ls -lh filtered.osm.pbf
 
       - name: Export to GeoJSONSeq
+        # -u type_id writes the OSM object id (n123 / w123 / a246) into each
+        # feature; the builder needs it to drop the second copy osmium
+        # exports of every closed way (once as a line, once as an area).
         run: |
-          osmium export -O -f geojsonseq -o filtered.geojsonseq filtered.osm.pbf
+          osmium export -O -u type_id -f geojsonseq -o filtered.geojsonseq filtered.osm.pbf
           ls -lh filtered.geojsonseq
 
       - name: Extract holiday regions

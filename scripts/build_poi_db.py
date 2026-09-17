@@ -7,9 +7,9 @@ Pipeline:
      to keep only objects tagged as one of the POI categories the app
      cares about — plus the nodes referenced by any matched way, so the
      way centroids can still be computed.
-  2. Run `osmium export -f geojsonseq` on the filtered PBF to get one
-     GeoJSON feature per line (with node locations resolved into actual
-     geometries).
+  2. Run `osmium export -u type_id -f geojsonseq` on the filtered PBF to
+     get one GeoJSON feature per line (with node locations resolved into
+     actual geometries, and the OSM object id as the feature id).
   3. Optionally do the same for administrative boundaries carrying an
      ISO 3166 code, exported as polygons (`--regions`).
   4. This script reads those geojsonseq files and writes a SQLite file with
@@ -95,30 +95,37 @@ def classify(props):
     return None
 
 
+def vertex_mean(points):
+    # A closed ring repeats its first vertex at the end. Counting it once
+    # keeps the result independent of where the ring starts — osmium starts
+    # the line and the area of the same way at different nodes.
+    if len(points) > 1 and points[0] == points[-1]:
+        points = points[:-1]
+    lats = [p[1] for p in points]
+    lons = [p[0] for p in points]
+    return sum(lats) / len(lats), sum(lons) / len(lons)
+
+
 def centroid(geometry):
     t = geometry.get("type")
     coords = geometry.get("coordinates")
     if t == "Point":
         return coords[1], coords[0]  # lat, lon
     if t == "LineString":
-        lats = [p[1] for p in coords]
-        lons = [p[0] for p in coords]
-        return sum(lats) / len(lats), sum(lons) / len(lons)
+        return vertex_mean(coords)
     if t == "Polygon":
-        ring = coords[0]
-        lats = [p[1] for p in ring]
-        lons = [p[0] for p in ring]
-        return sum(lats) / len(lats), sum(lons) / len(lons)
+        return vertex_mean(coords[0])
     if t == "MultiPolygon":
-        ring = coords[0][0]
-        lats = [p[1] for p in ring]
-        lons = [p[0] for p in ring]
-        return sum(lats) / len(lats), sum(lons) / len(lons)
+        return vertex_mean(coords[0][0])
     return None
 
 
 def parse_osm_id(id_str):
-    """osmium geojsonseq uses 'n123' / 'w456' / 'r789' for the feature id."""
+    """
+    (osm_type, osm_id) of a feature id as written by `osmium export -u
+    type_id`: 'n123' / 'w456' / 'r789', or 'a912' for an area, whose id is
+    twice the way id, or twice the relation id plus one.
+    """
     if not id_str:
         return 0, 0
     prefix, _, rest = id_str.partition("/")
@@ -134,6 +141,8 @@ def parse_osm_id(id_str):
         return 1, num
     if prefix.startswith("r") or prefix == "relation":
         return 2, num
+    if prefix.startswith("a"):
+        return (2, num // 2) if num % 2 else (1, num // 2)
     return 0, num
 
 
@@ -160,11 +169,10 @@ def read_pois(path):
     """Returns (pois, skipped). Each POI is a dict ready for insertion."""
     pois = []
     skipped = 0
-    # Dedup by rounded (type, lat, lon) — catches cases where the same
-    # POI is emitted as both a tagged node and a polygon. Using the OSM
-    # id would be more precise but `osmium export` omits the id field
-    # from its feature objects by default. The copies are not always
-    # tagged identically, so merge instead of keeping the first blindly.
+    # osmium exports a closed way twice, as a line and as an area; keep one
+    # POI per OSM object. Without ids (an export without `-u type_id`),
+    # fall back to the rounded (type, lat, lon), merging the copies'
+    # tags rather than keeping the first blindly.
     by_key = {}
     for feat in read_geojsonseq(path):
         if feat is None:
@@ -188,7 +196,8 @@ def read_pois(path):
         name = clean_text(props.get("name"))
         opening_hours = clean_text(props.get("opening_hours"))
 
-        key = (t, round(lat, 5), round(lon, 5))
+        osm_type, osm_id = parse_osm_id(feat.get("id", ""))
+        key = (osm_type, osm_id) if osm_id else (t, round(lat, 5), round(lon, 5))
         existing = by_key.get(key)
         if existing is not None:
             if existing["name"] is None:
@@ -197,7 +206,6 @@ def read_pois(path):
                 existing["opening_hours"] = opening_hours
             continue
 
-        osm_type, osm_id = parse_osm_id(feat.get("id", ""))
         poi = {
             "osm_id": osm_id,
             "osm_type": osm_type,
