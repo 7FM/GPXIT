@@ -524,11 +524,11 @@ fun MapScreen(
                     .padding(end = 14.dp, top = topPadding + 92.dp)
             ) {
                 PillButton(onClick = { showLayers = !showLayers }) {
-                    GlassIcon(DesignIcons.Layers, size = 20.dp)
+                    GlassIcon(DesignIcons.Layers, "Layers", size = 20.dp)
                 }
                 PillDivider()
                 PillButton(onClick = { mapCommand = MapCommand.ZOOM_TO_ROUTE }) {
-                    GlassIcon(DesignIcons.Fullscreen, size = 20.dp)
+                    GlassIcon(DesignIcons.Fullscreen, "Show whole route", size = 20.dp)
                 }
             }
 
@@ -580,11 +580,11 @@ fun MapScreen(
             ) {
                 VerticalPill {
                     PillButton(onClick = { mapCommand = MapCommand.ZOOM_IN }) {
-                        GlassIcon(DesignIcons.Plus, size = 20.dp)
+                        GlassIcon(DesignIcons.Plus, "Zoom in", size = 20.dp)
                     }
                     PillDivider()
                     PillButton(onClick = { mapCommand = MapCommand.ZOOM_OUT }) {
-                        GlassIcon(DesignIcons.Minus, size = 20.dp)
+                        GlassIcon(DesignIcons.Minus, "Zoom out", size = 20.dp)
                     }
                 }
                 SquareGlassButton(
@@ -599,7 +599,7 @@ fun MapScreen(
                             modifier = Modifier.size(18.dp),
                         )
                     } else {
-                        GlassIcon(DesignIcons.Search, size = 20.dp)
+                        GlassIcon(DesignIcons.Search, "Find stations here", size = 20.dp)
                     }
                 }
                 // Clear-results button. Its 44dp slot is always

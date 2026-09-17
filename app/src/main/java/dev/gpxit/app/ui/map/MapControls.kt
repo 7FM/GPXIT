@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.gpxit.app.ui.theme.LocalMapPalette
@@ -142,11 +144,11 @@ fun PillDivider(inset: Dp = 8.dp, modifier: Modifier = Modifier) {
  * pass an `ImageVector` and a size without re-typing the tint line.
  */
 @Composable
-fun GlassIcon(icon: ImageVector, size: Dp = 22.dp) {
+fun GlassIcon(icon: ImageVector, description: String?, size: Dp = 22.dp) {
     val palette = LocalMapPalette.current
     Icon(
         imageVector = icon,
-        contentDescription = null,
+        contentDescription = description,
         tint = palette.ink,
         modifier = Modifier.size(size),
     )
@@ -325,7 +327,10 @@ fun CompassButton(
     mapRotation: Float,
     modifier: Modifier = Modifier,
 ) {
-    RoundGlassButton(onClick = onClick, modifier = modifier) {
+    RoundGlassButton(
+        onClick = onClick,
+        modifier = modifier.semantics { contentDescription = "Point north" },
+    ) {
         CompassFace(mapRotation = mapRotation)
     }
 }
@@ -336,7 +341,10 @@ fun LocateButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    RoundGlassButton(onClick = onClick, modifier = modifier) {
+    RoundGlassButton(
+        onClick = onClick,
+        modifier = modifier.semantics { contentDescription = "My location" },
+    ) {
         LocatorArrow(mode = mode)
     }
 }

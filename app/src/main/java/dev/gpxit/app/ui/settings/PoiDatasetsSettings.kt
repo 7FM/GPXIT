@@ -209,7 +209,11 @@ private fun PoiDatasetRow(
         installed != null -> "${formatMb(installed.sizeBytes)} on the device"
         else -> formatMb(dataset.sizeBytes)
     }
-    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+    Column(
+        modifier = Modifier
+            .clickable { onSetSelected(!selected) }
+            .padding(vertical = 6.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = dataset.name, color = palette.ink, fontSize = 13.sp)
