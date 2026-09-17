@@ -10,6 +10,10 @@ Stations and connections come from **Deutsche Bahn (DB)** via the [public-transp
 
 Optionally (Settings → Transit data), the community-run **[Transitous](https://transitous.org)** service adds local transport in many more countries, e.g. trams and buses in France.
 
+## POI data
+
+Shops, drinking water, toilets and bike repair come from OpenStreetMap, as one SQLite file per country or region (37 of them, where the transit providers have coverage). The [Build POI Dataset](.github/workflows/build-poi-dataset.yml) workflow rebuilds them monthly and publishes them in the [`poi-data`](https://github.com/7FM/GPXIT/releases/tag/poi-data) release; the app downloads the countries picked in Settings → Map & data and offers the missing ones when a route enters another country. Opening hours are evaluated on the device, including public and school holidays of the region.
+
 ## Features
 
 - Import GPX routes (share from Komoot or any cycling app)
@@ -19,6 +23,7 @@ Optionally (Settings → Transit data), the community-run **[Transitous](https:/
 - Detailed connection info with intermediate stops and changes
 - Navigate to any station via your preferred map app
 - Download map tiles for offline use
+- Shops, bakeries, drinking water, toilets and bike repair along your route, with opening hours — offline, for the countries you choose
 - Configurable transport types (Deutschlandticket: regional trains, S-Bahn, U-Bahn, tram, bus)
 - Optional ICE/IC/EC connections
 - Configurable minimum wait buffer and maximum wait time filter
@@ -35,7 +40,7 @@ nix develop
 
 Or if you have direnv: entering the directory auto-activates the shell.
 
-The flake provides: JDK 21, Gradle 8.12.1, Android SDK (platform 35, build-tools 35.0.0).
+The flake provides: JDK 21, Gradle, Android SDK (platform 37.0, build-tools 37.0.0).
 
 ### Build variants
 
@@ -56,7 +61,7 @@ The flake provides: JDK 21, Gradle 8.12.1, Android SDK (platform 35, build-tools
 - No tracking, no analytics, no accounts
 - All data stays on your device
 - Location is used only to show your position on the map
-- Internet is used for map tiles (OpenStreetMap) and transit queries (Deutsche Bahn; Rejseplanen, Resrobot or Traveline for places they cover; Transitous only if enabled)
+- Internet is used for map tiles (OpenStreetMap), transit queries (Deutsche Bahn; Rejseplanen, Resrobot or Traveline for places they cover; Transitous only if enabled) and downloading the offline POI data (GitHub)
 
 ## License
 
