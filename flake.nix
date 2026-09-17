@@ -82,6 +82,9 @@
 
         devShells.screenshots = pkgs.mkShell {
           packages = [
+            # Finds UI elements and POI markers on the captured screens.
+            # First, so it wins over the Python android-tools brings along.
+            (pkgs.python3.withPackages (ps: [ ps.pillow ]))
             pkgs.jdk21
             gradle
             pkgs.android-tools # host adb
