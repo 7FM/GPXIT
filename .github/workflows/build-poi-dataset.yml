@@ -1,8 +1,14 @@
 name: Build POI Dataset
 
-# Rebuilds the filtered SQLite POI dataset from the latest Geofabrik
-# Germany extract and publishes it as the `poi-data` release asset the
-# Android app downloads on first launch and refreshes monthly.
+# Rebuilds the filtered SQLite POI datasets — one per Geofabrik extract
+# listed in scripts/poi_datasets.json — and publishes them as assets of the
+# `poi-data` release, together with pois-index.json, which the app reads to
+# offer the datasets and check for updates. Users download only the
+# countries they pick.
+#
+# Each extract builds in its own job, so one runner never holds more than a
+# single extract (France, the largest, is about 5 GB). A failed job leaves
+# that dataset's previously published file and index entry in place.
 #
 # Trigger on the 1st of each month, or on demand via workflow_dispatch.
 
@@ -13,18 +19,58 @@ on:
     - cron: '17 3 1 * *'
   workflow_dispatch:
     inputs:
-      source_pbf_url:
-        description: "Geofabrik .osm.pbf URL to extract from"
+      datasets:
+        description: "Dataset ids to rebuild, comma-separated (see scripts/poi_datasets.json); empty = all"
         required: false
-        default: "https://download.geofabrik.de/europe/germany-latest.osm.pbf"
+        default: ""
 
 permissions:
   contents: write
 
+concurrency:
+  group: poi-dataset
+  cancel-in-progress: false
+
 jobs:
-  build:
+  datasets:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: List datasets
+        id: list
+        env:
+          ONLY: ${{ github.event.inputs.datasets }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os
+          datasets = json.load(open("scripts/poi_datasets.json"))["datasets"]
+          only = {s.strip() for s in os.environ.get("ONLY", "").split(",") if s.strip()}
+          unknown = only - {d["id"] for d in datasets}
+          if unknown:
+              raise SystemExit(f"unknown datasets: {', '.join(sorted(unknown))}")
+          include = [
+              {"id": d["id"], "geofabrik": d["geofabrik"]}
+              for d in datasets if not only or d["id"] in only
+          ]
+          print("matrix=" + json.dumps({"include": include}))
+          EOF
+
+  build:
+    needs: datasets
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      # Be gentle with download.geofabrik.de.
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.datasets.outputs.matrix) }}
+    name: build (${{ matrix.id }})
+    env:
+      ID: ${{ matrix.id }}
+      SOURCE: https://download.geofabrik.de/${{ matrix.geofabrik }}
     steps:
       - uses: actions/checkout@v7
 
@@ -35,8 +81,9 @@ jobs:
           osmium --version
 
       - name: Install Python dependencies
-        # shapely assigns POIs to holiday regions, holidays computes the
-        # public / school holidays of those regions.
+        # shapely assigns POIs to holiday regions and simplifies the
+        # extract outline, holidays computes the public / school holidays
+        # of those regions.
         run: |
           python3 -m venv .venv
           .venv/bin/pip install --quiet -r scripts/requirements.txt
@@ -44,10 +91,9 @@ jobs:
 
       - name: Download OSM extract
         run: |
-          URL="${{ github.event.inputs.source_pbf_url || 'https://download.geofabrik.de/europe/germany-latest.osm.pbf' }}"
-          echo "Downloading from $URL"
-          curl -fL --retry 3 --retry-delay 5 -o input.osm.pbf "$URL"
-          ls -lh input.osm.pbf
+          curl -fL --retry 3 --retry-delay 5 -o input.osm.pbf "$SOURCE-latest.osm.pbf"
+          curl -fL --retry 3 --retry-delay 5 -o extract.poly "$SOURCE.poly"
+          ls -lh input.osm.pbf extract.poly
 
       - name: Filter POI tags
         # Default behavior already includes nodes referenced by matched
@@ -87,27 +133,77 @@ jobs:
 
       - name: Build SQLite DB
         run: |
-          .venv/bin/python scripts/build_poi_db.py filtered.geojsonseq pois.db \
-            --regions boundaries.geojsonseq
-          ls -lh pois.db
+          mkdir -p dist
+          .venv/bin/python scripts/build_poi_db.py filtered.geojsonseq "dist/$ID.db" \
+            --regions boundaries.geojsonseq --dataset "$ID"
+          gzip -9 -k "dist/$ID.db"
+          .venv/bin/python scripts/poi_index.py entry --dataset "$ID" \
+            --db "dist/$ID.db" --gz "dist/$ID.db.gz" --poly extract.poly \
+            -o "dist/$ID.json"
+          rm "dist/$ID.db"
+          ls -lh dist
 
-      - name: Compress DB
-        run: |
-          gzip -9 -k pois.db
-          ls -lh pois.db.gz
-          sha256sum pois.db.gz > pois.db.gz.sha256
-          cat pois.db.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: poi-${{ matrix.id }}
+          path: dist/
+          retention-days: 3
 
-      - name: Replace poi-data release
+  publish:
+    needs: [datasets, build]
+    # Publish whatever was built, even if some extracts failed.
+    if: ${{ !cancelled() && needs.datasets.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: poi-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish to the poi-data release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Delete any existing release so the asset URL stays stable and
-          # we don't accumulate old copies.
-          gh release delete poi-data --yes --cleanup-tag 2>/dev/null || true
+          set -euo pipefail
+          shopt -s nullglob
+          entries=(dist/*.json)
+          if [ ${#entries[@]} -eq 0 ]; then
+            echo "::error::No dataset was built."
+            exit 1
+          fi
 
           DATE_STR="$(date -u +'%Y-%m-%d')"
-          gh release create poi-data \
-            --title "POI dataset ($DATE_STR)" \
-            --notes "Filtered OSM POI dataset (grocery / bakery / drinking water / toilets / bike repair) for Germany, with opening hours and the public / school holidays needed to evaluate them. Rebuilt monthly." \
-            pois.db.gz pois.db.gz.sha256
+          NOTES="Filtered OSM POI datasets (grocery / bakery / drinking water / toilets / bike repair), one per country, with opening hours and the public / school holidays needed to evaluate them. pois-index.json lists them. Rebuilt monthly. pois.db.gz is the Germany dataset under its old name, for app versions before per-country downloads."
+          if ! gh release view poi-data > /dev/null 2>&1; then
+            gh release create poi-data --title "POI datasets ($DATE_STR)" --notes "$NOTES"
+          fi
+
+          mkdir -p previous
+          gh release download poi-data --pattern pois-index.json --dir previous || true
+          python3 scripts/poi_index.py merge --previous previous/pois-index.json \
+            -o dist/pois-index.json "${entries[@]}"
+
+          assets=(dist/*.db.gz)
+          # App versions before per-country datasets download pois.db.gz.
+          if [ -f dist/germany.db.gz ]; then
+            cp dist/germany.db.gz dist/pois.db.gz
+            assets+=(dist/pois.db.gz)
+          fi
+          # The files first, the index that points at them last.
+          gh release upload poi-data "${assets[@]}" --clobber
+          gh release upload poi-data dist/pois-index.json --clobber
+
+          # Drop assets no dataset refers to any more (removed datasets,
+          # the old checksum file).
+          keep="$(python3 -c 'import json; print(" ".join(d["file"] for d in json.load(open("dist/pois-index.json"))["datasets"]))') pois.db.gz pois-index.json"
+          gh release view poi-data --json assets --jq '.assets[].name' | while read -r name; do
+            case " $keep " in
+              *" $name "*) ;;
+              *) echo "Deleting stale asset $name"; gh release delete-asset poi-data "$name" --yes ;;
+            esac
+          done
+
+          gh release edit poi-data --title "POI datasets ($DATE_STR)" --notes "$NOTES"

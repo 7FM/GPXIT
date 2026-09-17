@@ -99,8 +99,8 @@ fun GpxitApp(
     val scope = rememberCoroutineScope()
     val locationService = remember { LocationService(context) }
     val transitRepository = remember { TransitRepository(context) }
-    val poiDatabase = remember { dev.gpxit.app.data.poi.PoiDatabase(context) }
-    val poiDownloader = remember { dev.gpxit.app.data.poi.PoiDatasetDownloader(context) }
+    val poiDatabase = remember { dev.gpxit.app.data.poi.PoiDatabase.get(context) }
+    val poiDatasets = remember { dev.gpxit.app.data.poi.PoiDatasetManager.get(context) }
     val prefsRepository = remember { PrefsRepository(context) }
     val routeStorage = remember { dev.gpxit.app.data.RouteStorage(context) }
     val mapTileDownloader = remember { dev.gpxit.app.data.MapTileDownloader(context) }
@@ -229,48 +229,13 @@ fun GpxitApp(
 
     // Offline map download state
     var downloadState by remember { mutableStateOf(GpxitDownloadState()) }
-    // POI dataset download state (shared with Settings for the manual button).
-    var poiDbState by remember { mutableStateOf(GpxitDownloadState()) }
     // Trip-tracking service state — observed from the service's own flow.
     val tripTrackingState by dev.gpxit.app.data.tracking.TripTrackingService.state
         .collectAsState()
 
-    // Drive the POI dataset download — fires when the DB is missing OR
-    // when the last successful update was more than 30 days ago and the
-    // user has auto-update enabled. Manual updates from Settings go
-    // through the same lambda.
-    val triggerPoiDbDownload: () -> Unit = {
-        if (!poiDbState.active) {
-            scope.launch {
-                val ok = poiDownloader.download(poiDatabase) { p ->
-                    poiDbState = GpxitDownloadState(
-                        progress = p.fraction.coerceIn(0f, 1f),
-                        label = p.label,
-                        active = p.active
-                    )
-                }
-                if (ok) {
-                    prefsRepository.setPoiDbLastUpdate(System.currentTimeMillis())
-                    // Refresh the route's POI cache immediately so any
-                    // new categories the updated DB introduced (e.g.
-                    // bike-repair) show up without re-importing.
-                    importViewModel.routeInfo.value?.let {
-                        importViewModel.refreshPoisForRoute(it)
-                    }
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val p = prefsRepository.preferences.first()
-        val now = System.currentTimeMillis()
-        val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
-        val stale = p.poiDbLastUpdateMs > 0 && now - p.poiDbLastUpdateMs > thirtyDaysMs
-        val shouldDownload = !poiDatabase.isAvailable() ||
-            (p.poiDbAutoUpdate && stale)
-        if (shouldDownload) triggerPoiDbDownload()
-    }
+    // POI datasets: picks the countries to keep on first use, downloads
+    // missing ones and checks monthly for newer builds.
+    LaunchedEffect(Unit) { poiDatasets.start() }
 
     // Nearby search state — restored from disk, cleared on new route import
     var nearbyStations by remember { mutableStateOf(routeStorage.loadNearbyStations()) }
@@ -425,6 +390,7 @@ fun GpxitApp(
                     downloadState = downloadState,
                     brouterInstalled = brouterInstalled,
                     onInstallBRouter = { showBRouterInstallPrompt = true },
+                    poiDatasetState = poiDatasets.state,
                     onClearRoute = {
                         // Wipe everything route-derived: the cached
                         // destination, the saved viewport snapshot,
@@ -716,9 +682,10 @@ fun GpxitApp(
                     onSetShowElevationGraph = { settingsViewModel.setShowElevationGraph(it) },
                     onSetElevationAwareTime = { settingsViewModel.setElevationAwareTime(it) },
                     onSetPoiDbAutoUpdate = { settingsViewModel.setPoiDbAutoUpdate(it) },
-                    onUpdatePoiDb = triggerPoiDbDownload,
-                    poiDbDownloadState = poiDbState,
-                    poiDbAvailable = poiDatabase.isAvailable(),
+                    poiDatasetState = poiDatasets.state,
+                    onUpdatePoiDatasets = poiDatasets::updateAll,
+                    onRefreshPoiDatasetIndex = poiDatasets::refreshIndex,
+                    onSetPoiDatasetSelected = poiDatasets::setSelected,
                     onSetTripTrackingEnabled = { settingsViewModel.setTripTrackingEnabled(it) },
                     onSetTransitousEnabled = { settingsViewModel.setTransitousEnabled(it) },
                     onSetThemeMode = { settingsViewModel.setThemeMode(it) },

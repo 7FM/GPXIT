@@ -28,7 +28,12 @@ Schema is intentionally simple. No R-tree, so the DB works on any Android
 SQLite build. Columns are only ever added, so app versions that predate a
 column keep working with newer databases.
 
-Usage: build_poi_db.py <pois.geojsonseq> <output.db> [--regions <boundaries.geojsonseq>]
+The app installs one such file per dataset (see scripts/poi_datasets.json)
+and queries them side by side, so each file names its dataset and records
+the bounds of its POIs in the `meta` table.
+
+Usage: build_poi_db.py <pois.geojsonseq> <output.db>
+           [--regions <boundaries.geojsonseq>] [--dataset <id>]
 """
 
 import argparse
@@ -376,7 +381,7 @@ def to_epoch_day(ordinal):
     return ordinal - EPOCH_ORDINAL
 
 
-def write_db(output_path, pois, holiday_regions, build_time):
+def write_db(output_path, pois, holiday_regions, build_time, dataset=None):
     if os.path.exists(output_path):
         os.remove(output_path)
 
@@ -470,13 +475,21 @@ def write_db(output_path, pois, holiday_regions, build_time):
 
     # Stamp the DB with a build timestamp so the app can detect whether
     # what's on disk is newer than the user's copy.
-    cur.executemany(
-        "INSERT INTO meta (key, value) VALUES (?, ?)",
-        [
-            ("built_at", build_time.strftime("%Y-%m-%dT%H:%M:%SZ")),
-            ("schema_version", "2"),
-        ],
-    )
+    meta = [
+        ("built_at", build_time.strftime("%Y-%m-%dT%H:%M:%SZ")),
+        ("schema_version", "2"),
+    ]
+    if dataset:
+        meta.append(("dataset", dataset))
+    if pois:
+        # min_lat,min_lon,max_lat,max_lon — lets the app skip files a
+        # query can't hit.
+        bounds = (
+            min(p["lat"] for p in pois), min(p["lon"] for p in pois),
+            max(p["lat"] for p in pois), max(p["lon"] for p in pois),
+        )
+        meta.append(("bounds", ",".join(f"{v:.6f}" for v in bounds)))
+    cur.executemany("INSERT INTO meta (key, value) VALUES (?, ?)", meta)
     conn.commit()
     conn.execute("VACUUM")
     conn.close()
@@ -491,6 +504,7 @@ def main():
         help="administrative boundaries with ISO 3166 codes (osmium export "
              "geojsonseq, polygons). Without it, no holiday data is written.",
     )
+    parser.add_argument("--dataset", help="dataset id to record in the file (poi_datasets.json)")
     args = parser.parse_args()
 
     build_time = datetime.now(timezone.utc)
@@ -519,7 +533,7 @@ def main():
             print(f"  {code}: {len(rows)} holiday rows"
                   f"{'' if sh_range else ' (no school holidays)'}")
 
-    write_db(args.output, pois, holiday_regions, build_time)
+    write_db(args.output, pois, holiday_regions, build_time, args.dataset)
 
     print(f"Done: {len(pois)} POIs inserted.")
     print(f"Output: {args.output} ({os.path.getsize(args.output)} bytes)")

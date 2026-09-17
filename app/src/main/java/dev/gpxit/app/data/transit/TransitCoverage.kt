@@ -35,6 +35,9 @@ class CoverageArea(
         regions == listOf("UN") ||
             (minLon == -180.0 && maxLon == 180.0 && minLat == -90.0 && maxLat == 90.0)
 
+    /** Whether any polygon was given; without one, [covers] is true everywhere. */
+    val hasArea: Boolean get() = polygons.isNotEmpty()
+
     fun covers(lat: Double, lon: Double): Boolean {
         // Like KPublicTransport: with no area to check a coordinate against,
         // assume the backend can help.
@@ -70,12 +73,13 @@ class CoverageArea(
                 val coverage = backends.getJSONObject(backendId).getJSONObject("coverage")
                 result[backendId] = CoverageTier.entries
                     .filter { coverage.has(it.key) }
-                    .associateWith { parseArea(coverage.getJSONObject(it.key)) }
+                    .associateWith { parse(coverage.getJSONObject(it.key)) }
             }
             return result
         }
 
-        private fun parseArea(obj: JSONObject): CoverageArea {
+        /** One area: `{"regions": [...], "polygons": [[[lon, lat], ...], ...]}`. */
+        fun parse(obj: JSONObject): CoverageArea {
             val regionsJson = obj.optJSONArray("regions") ?: JSONArray()
             val regions = (0 until regionsJson.length()).map { regionsJson.getString(it) }
             val polygonsJson = obj.optJSONArray("polygons") ?: JSONArray()

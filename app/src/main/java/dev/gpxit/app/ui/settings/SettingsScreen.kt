@@ -29,7 +29,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -53,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.gpxit.app.data.poi.PoiDatasetManager
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.StationSuggestion
 import dev.gpxit.app.data.transit.TransitousBackend
@@ -87,9 +87,10 @@ fun SettingsScreen(
     onSetMaxStationsToCheck: (Int) -> Unit,
     onSetShowElevationGraph: (Boolean) -> Unit,
     onSetPoiDbAutoUpdate: (Boolean) -> Unit,
-    onUpdatePoiDb: () -> Unit,
-    poiDbDownloadState: dev.gpxit.app.GpxitDownloadState,
-    poiDbAvailable: Boolean,
+    poiDatasetState: StateFlow<PoiDatasetManager.State>,
+    onUpdatePoiDatasets: () -> Unit,
+    onRefreshPoiDatasetIndex: () -> Unit,
+    onSetPoiDatasetSelected: (String, Boolean) -> Unit,
     onSetTripTrackingEnabled: (Boolean) -> Unit,
     onSetTransitousEnabled: (Boolean) -> Unit,
     onSetThemeMode: (dev.gpxit.app.ui.theme.ThemeMode) -> Unit,
@@ -106,6 +107,7 @@ fun SettingsScreen(
 ) {
     val prefs by prefsFlow.collectAsState(initial = PrefsRepository.UserPreferences())
     val komootState by komootStateFlow.collectAsState()
+    val poiDatasets by poiDatasetState.collectAsState()
     var stationQuery by remember { mutableStateOf("") }
     var openGroup by remember { mutableStateOf<String?>("stations") }
 
@@ -418,100 +420,21 @@ fun SettingsScreen(
                 AccordionGroup(
                     id = "data",
                     title = "Map & data",
-                    summary = poiSummary(prefs.poiDbLastUpdateMs, poiDbAvailable),
+                    summary = poiSummary(poiDatasets),
                     icon = DesignIcons.Layers,
                     isOpen = openGroup == "data",
                     onToggle = {
                         openGroup = if (openGroup == "data") null else "data"
                     },
                 ) {
-                    Column {
-                        // POI DB card.
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(palette.sheetBg)
-                                .border(1.dp, palette.line, RoundedCornerShape(10.dp))
-                                .padding(12.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "POI database",
-                                        color = palette.ink,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    // While a download is live, the downloader's
-                                    // own label wins (e.g. "Downloading 3.2 / 5.0 MB")
-                                    // so the user sees progress in MB instead of
-                                    // the "Updated today" idle copy.
-                                    val statusLine = if (poiDbDownloadState.active) {
-                                        poiDbDownloadState.label
-                                    } else {
-                                        poiSummary(prefs.poiDbLastUpdateMs, poiDbAvailable)
-                                    }
-                                    Text(
-                                        text = statusLine,
-                                        color = palette.inkSoft,
-                                        fontSize = 11.sp,
-                                        modifier = Modifier.padding(top = 2.dp),
-                                    )
-                                }
-                                Button(
-                                    onClick = onUpdatePoiDb,
-                                    enabled = !poiDbDownloadState.active,
-                                    shape = RoundedCornerShape(999.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = palette.accent,
-                                        contentColor = Color.White,
-                                    ),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                        horizontal = 12.dp, vertical = 0.dp,
-                                    ),
-                                    modifier = Modifier.height(32.dp),
-                                ) {
-                                    Text(
-                                        text = if (poiDbAvailable) "Update" else "Download",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
-                            }
-                            if (poiDbDownloadState.active || poiDbDownloadState.progress > 0f) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                LinearProgressIndicator(
-                                    progress = { poiDbDownloadState.progress },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(palette.line),
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = "Auto-update monthly",
-                                    color = palette.ink,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                SettingsToggle(
-                                    on = prefs.poiDbAutoUpdate,
-                                    onChange = onSetPoiDbAutoUpdate,
-                                    small = true,
-                                )
-                            }
-                        }
-                    }
+                    PoiDatasetsSettings(
+                        state = poiDatasets,
+                        autoUpdate = prefs.poiDbAutoUpdate,
+                        onSetAutoUpdate = onSetPoiDbAutoUpdate,
+                        onUpdate = onUpdatePoiDatasets,
+                        onRefreshIndex = onRefreshPoiDatasetIndex,
+                        onSetSelected = onSetPoiDatasetSelected,
+                    )
                 }
 
                 // Appearance — theme override
@@ -872,7 +795,7 @@ private fun TransitSourcesSettings(
 
 /** Pill toggle matching the design's `<Toggle>` component. */
 @Composable
-private fun SettingsToggle(
+internal fun SettingsToggle(
     on: Boolean,
     onChange: (Boolean) -> Unit,
     small: Boolean = false,
@@ -948,19 +871,6 @@ private fun formatChipsSummary(
     val short = if (labels.length > 40) labels.substring(0, 40) + "\u2026" else labels
     return if (selected.isEmpty()) "None selected"
     else "${selected.size}/${all.size} \u00B7 $short"
-}
-
-private fun poiSummary(lastUpdateMs: Long, available: Boolean): String {
-    if (!available) return "Not downloaded yet"
-    if (lastUpdateMs == 0L) return "Installed"
-    val nowMs = System.currentTimeMillis()
-    val days = ((nowMs - lastUpdateMs) / 86_400_000L).toInt()
-    val rel = when {
-        days <= 0 -> "today"
-        days == 1 -> "yesterday"
-        else -> "$days days ago"
-    }
-    return "Updated $rel"
 }
 
 @Composable

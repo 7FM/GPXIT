@@ -57,13 +57,14 @@ Single-module app, MVVM with ViewModels and Compose. No DI framework — manual 
 3. **Decision time**: Filter stations ahead → estimate cycling time → `queryTrips()` for each → show in route order with recommended option
 4. **Search nearby**: Query stations in current map viewport, shown as teal markers
 5. **Offline tiles**: `MapTileDownloader` downloads route corridor tiles (zoom 10–16) directly to osmdroid's `SqlTileWriter` cache
+6. **Offline POIs**: one SQLite dataset per country (Geofabrik extract, listed in `scripts/poi_datasets.json`), rebuilt monthly by `.github/workflows/build-poi-dataset.yml` and published with `pois-index.json` in the `poi-data` release → `PoiDatasetManager` downloads the countries picked in Settings (default: locale / home station; route import offers the countries a route enters) → `PoiDatabase` queries all installed files and merges border duplicates by OSM id
 
 ### Package layout
 ```
 data/gpx/           — GpxParser + haversine/geo utilities
 data/transit/        — TransitRepository (facade), TransitBackendRegistry, PteBackend, TransitousBackend, station/trip matching
 data/prefs/          — PrefsRepository (DataStore)
-data/poi/            — PoiDatabase (SQLite dataset from scripts/build_poi_db.py), PoiOpeningHours
+data/poi/            — PoiDatabase (per-country SQLite datasets from scripts/build_poi_db.py), PoiDatasetManager (selection, index, downloads), PoiOpeningHours
 data/openinghours/   — OpeningHoursEvaluator (rule semantics follow opening_hours.js), HolidayCalendar, SunTimes
 data/                — RouteStorage, MapTileDownloader, OsmTileSource
 domain/              — RoutePoint, RouteInfo, StationCandidate, ConnectionOption

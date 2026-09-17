@@ -294,8 +294,10 @@ fun MapScreen(
         }
     }
 
+    // Changes when POI datasets are installed or removed.
+    val poiDataVersion by poiDatabase.version.collectAsState()
     androidx.compose.runtime.LaunchedEffect(
-        viewportBounds, zoomLevel, enabledTypes, routePois.isEmpty()
+        viewportBounds, zoomLevel, enabledTypes, routePois.isEmpty(), poiDataVersion
     ) {
         if (routePois.isNotEmpty()) {
             viewportPois = emptyList()
@@ -311,7 +313,7 @@ fun MapScreen(
         val qn = (bb.second / q).toInt()
         val qw = (bb.third / q).toInt()
         val qe = (bb.fourth / q).toInt()
-        val key = "$qs/$qn/$qw/$qe/${enabledTypes.joinToString(",")}"
+        val key = "$qs/$qn/$qw/$qe/${enabledTypes.joinToString(",")}/$poiDataVersion"
         if (key == lastFetchKey.value) return@LaunchedEffect
         lastFetchKey.value = key
         kotlinx.coroutines.delay(100)

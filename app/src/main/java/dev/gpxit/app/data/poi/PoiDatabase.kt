@@ -2,7 +2,6 @@ package dev.gpxit.app.data.poi
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteException
 import android.util.Log
 import dev.gpxit.app.data.gpx.haversineMeters
 import dev.gpxit.app.data.openinghours.HolidayCalendar
@@ -11,6 +10,9 @@ import dev.gpxit.app.domain.Poi
 import dev.gpxit.app.domain.PoiType
 import dev.gpxit.app.domain.RoutePoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
@@ -18,79 +20,125 @@ import kotlin.math.PI
 import kotlin.math.cos
 
 /**
- * Reads POIs from the local SQLite dataset that ships via the
- * build-poi-dataset GitHub Action. The file lives at
- * `filesDir/pois.db` after [PoiDatasetDownloader] populates it.
+ * Reads POIs from the local SQLite datasets that ship via the
+ * build-poi-dataset GitHub Action — one file per country (Geofabrik
+ * extract) at `filesDir/pois/<id>.db`, installed by [PoiDatasetManager].
  *
- * Same surface as the old Overpass-backed PoiRepository so callers don't
- * care where the data comes from — but every query is a local disk hit,
- * no network.
+ * Queries go to every installed file whose POIs can lie in the queried
+ * area, and the results are merged ([mergeDatasetPois]). Each file carries
+ * the holidays of its own regions. Every query is a local disk hit, no
+ * network.
  */
-class PoiDatabase(private val context: Context) {
+class PoiDatabase private constructor(context: Context) {
 
-    private val dbFile: File get() = File(context.filesDir, "pois.db")
+    private val dir = File(context.filesDir, DIR)
 
-    @Volatile
-    private var db: SQLiteDatabase? = null
+    /** Build information of an installed dataset file. */
+    data class DatasetInfo(
+        val builtAt: String?,
+        /** Null for the Germany-only file of app versions before per-country datasets. */
+        val datasetId: String?,
+        val sizeBytes: Long,
+    )
 
-    /** Whether the open DB has opening hours + holiday regions (schema 2+). */
-    @Volatile
-    private var hasOpeningHours = false
+    private class OpenDataset(
+        val db: SQLiteDatabase,
+        val info: DatasetInfo,
+        /** Whether the file has opening hours + holiday regions (schema 2+). */
+        val hasOpeningHours: Boolean,
+        /** min lat, min lon, max lat, max lon of the POIs, if recorded. */
+        val bounds: DoubleArray?,
+        val regions: Set<String>,
+    )
 
+    private val open = HashMap<String, OpenDataset>()
     private val holidayCalendars = HashMap<String, HolidayCalendar>()
 
-    /** True iff the local database file exists and is non-empty. */
-    fun isAvailable(): Boolean {
-        val f = dbFile
-        return f.exists() && f.length() > 0L
+    private val _version = MutableStateFlow(0)
+
+    /** Changes whenever a dataset is installed or removed. */
+    val version: StateFlow<Int> = _version
+
+    init {
+        migrateLegacyFile(context.filesDir)
     }
 
-    /** Build timestamp (ISO-8601 UTC) recorded by the Python builder, or null. */
-    fun builtAt(): String? {
-        val database = openOrNull() ?: return null
-        return try {
-            database.rawQuery(
-                "SELECT value FROM meta WHERE key = 'built_at' LIMIT 1", null
-            ).use { c -> if (c.moveToFirst()) c.getString(0) else null }
-        } catch (_: Exception) {
-            null
-        }
-    }
+    /** Ids of the installed datasets. */
+    fun installedIds(): List<String> =
+        dir.list()?.filter { it.endsWith(DB_SUFFIX) }?.map { it.removeSuffix(DB_SUFFIX) }?.sorted()
+            ?: emptyList()
 
-    /** Swaps a freshly-downloaded DB in under lock — closes the old handle. */
+    /** True iff at least one dataset is installed. */
+    fun isAvailable(): Boolean = installedIds().isNotEmpty()
+
+    /** Build information of an installed dataset, or null if it isn't installed or can't be read. */
+    fun info(id: String): DatasetInfo? = openOrNull(id)?.info
+
+    /** Swaps [newDbFile] in as dataset [id] — closes the old file first. */
     @Synchronized
-    fun replaceWith(newDbFile: File) {
-        close()
-        if (dbFile.exists()) dbFile.delete()
-        if (!newDbFile.renameTo(dbFile)) {
+    fun install(id: String, newDbFile: File) {
+        close(id)
+        dir.mkdirs()
+        val target = fileOf(id)
+        if (target.exists()) target.delete()
+        if (!newDbFile.renameTo(target)) {
             // Fall back to copy if rename crosses filesystems.
-            newDbFile.copyTo(dbFile, overwrite = true)
+            newDbFile.copyTo(target, overwrite = true)
             newDbFile.delete()
         }
+        _version.update { it + 1 }
     }
 
     @Synchronized
-    fun close() {
-        db?.close()
-        db = null
+    fun remove(id: String) {
+        close(id)
+        fileOf(id).delete()
+        _version.update { it + 1 }
+    }
+
+    private fun fileOf(id: String) = File(dir, id + DB_SUFFIX)
+
+    @Synchronized
+    private fun close(id: String) {
+        open.remove(id)?.db?.close()
         holidayCalendars.clear()
     }
 
     @Synchronized
-    private fun openOrNull(): SQLiteDatabase? {
-        if (db != null) return db
-        if (!isAvailable()) return null
+    private fun openOrNull(id: String): OpenDataset? {
+        open[id]?.let { return it }
+        val file = fileOf(id)
+        if (!file.exists() || file.length() == 0L) return null
+        var db: SQLiteDatabase? = null
         return try {
-            SQLiteDatabase.openDatabase(
-                dbFile.absolutePath,
+            db = SQLiteDatabase.openDatabase(
+                file.absolutePath,
                 null,
                 SQLiteDatabase.OPEN_READONLY or SQLiteDatabase.NO_LOCALIZED_COLLATORS
-            ).also {
-                hasOpeningHours = it.hasColumn("pois", "opening_hours")
-                db = it
+            )
+            val meta = HashMap<String, String>()
+            db.rawQuery("SELECT key, value FROM meta", null).use { c ->
+                while (c.moveToNext()) meta[c.getString(0)] = c.getString(1)
             }
-        } catch (e: SQLiteException) {
-            Log.w(TAG, "open failed: ${e.message}")
+            val hasOpeningHours = db.hasColumn("pois", "opening_hours")
+            val regions = HashSet<String>()
+            if (hasOpeningHours) {
+                db.rawQuery("SELECT code FROM regions", null).use { c ->
+                    while (c.moveToNext()) regions += c.getString(0)
+                }
+            }
+            val bounds = meta["bounds"]?.split(",")?.mapNotNull { it.toDoubleOrNull() }
+                ?.takeIf { it.size == 4 }?.toDoubleArray()
+            OpenDataset(
+                db = db,
+                info = DatasetInfo(meta["built_at"], meta["dataset"], file.length()),
+                hasOpeningHours = hasOpeningHours,
+                bounds = bounds,
+                regions = regions,
+            ).also { open[id] = it }
+        } catch (e: Exception) {
+            Log.w(TAG, "open $id failed: ${e.message}")
+            db?.close()
             null
         }
     }
@@ -105,18 +153,36 @@ class PoiDatabase(private val context: Context) {
     ): List<Poi> = withContext(Dispatchers.IO) {
         if (types.isEmpty()) return@withContext emptyList()
         if (latNorth <= latSouth || lonEast <= lonWest) return@withContext emptyList()
-        val database = openOrNull() ?: return@withContext emptyList()
+        val perDataset = installedIds().mapNotNull { id ->
+            val dataset = openOrNull(id) ?: return@mapNotNull null
+            val b = dataset.bounds
+            if (b != null && (b[0] > latNorth || b[2] < latSouth || b[1] > lonEast || b[3] < lonWest)) {
+                return@mapNotNull null
+            }
+            queryDataset(id, dataset, types, latSouth, latNorth, lonWest, lonEast)
+        }
+        mergeDatasetPois(perDataset)
+    }
 
+    private fun queryDataset(
+        id: String,
+        dataset: OpenDataset,
+        types: Set<PoiType>,
+        latSouth: Double,
+        latNorth: Double,
+        lonWest: Double,
+        lonEast: Double
+    ): List<DatasetPoi> {
         val typeIds = types.map { it.dbId }.joinToString(",")
         // Datasets built before opening hours were added lack those columns.
-        val sql = if (hasOpeningHours) {
-            "SELECT p.osm_id, p.type, p.lat, p.lon, p.name, p.opening_hours, r.code " +
+        val sql = if (dataset.hasOpeningHours) {
+            "SELECT p.osm_type, p.osm_id, p.type, p.lat, p.lon, p.name, p.opening_hours, r.code " +
                 "FROM pois p LEFT JOIN regions r ON r.id = p.region_id " +
                 "WHERE p.type IN ($typeIds) " +
                 "AND p.lat BETWEEN ? AND ? " +
                 "AND p.lon BETWEEN ? AND ?"
         } else {
-            "SELECT osm_id, type, lat, lon, name, NULL, NULL FROM pois " +
+            "SELECT osm_type, osm_id, type, lat, lon, name, NULL, NULL FROM pois " +
                 "WHERE type IN ($typeIds) " +
                 "AND lat BETWEEN ? AND ? " +
                 "AND lon BETWEEN ? AND ?"
@@ -126,26 +192,33 @@ class PoiDatabase(private val context: Context) {
             lonWest.toString(), lonEast.toString()
         )
 
-        val out = ArrayList<Poi>()
+        val out = ArrayList<DatasetPoi>()
         try {
-            database.rawQuery(sql, args).use { c ->
+            dataset.db.rawQuery(sql, args).use { c ->
                 while (c.moveToNext()) {
-                    val type = poiTypeFromDbId(c.getInt(1)) ?: continue
-                    out += Poi(
-                        id = c.getLong(0),
-                        type = type,
-                        lat = c.getDouble(2),
-                        lon = c.getDouble(3),
-                        name = c.getString(4)?.takeIf { it.isNotBlank() },
-                        openingHours = c.getString(5)?.takeIf { it.isNotBlank() },
-                        holidayRegion = c.getString(6),
+                    val type = poiTypeFromDbId(c.getInt(2)) ?: continue
+                    val osmId = c.getLong(1)
+                    out += DatasetPoi(
+                        osmType = c.getInt(0),
+                        osmId = osmId,
+                        poi = Poi(
+                            id = osmId,
+                            type = type,
+                            lat = c.getDouble(3),
+                            lon = c.getDouble(4),
+                            name = c.getString(5)?.takeIf { it.isNotBlank() },
+                            openingHours = c.getString(6)?.takeIf { it.isNotBlank() },
+                            holidayRegion = c.getString(7),
+                        ),
                     )
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "bbox query failed: ${e.message}")
+            // Also reached when the file was replaced mid-query; the
+            // version change makes callers query again.
+            Log.w(TAG, "bbox query on $id failed: ${e.message}")
         }
-        out
+        return out
     }
 
     /**
@@ -209,12 +282,19 @@ class PoiDatabase(private val context: Context) {
         if (region == null) return HolidayCalendar.UNKNOWN
         synchronized(this) {
             holidayCalendars[region]?.let { return it }
-            val database = openOrNull() ?: return HolidayCalendar.UNKNOWN
-            val calendar = try {
-                loadHolidayCalendar(database, region)
-            } catch (e: Exception) {
-                Log.w(TAG, "loading holidays for $region failed: ${e.message}")
-                null
+            // Any file listing the region has its holidays; the newest
+            // build covers the most future days.
+            val dataset = installedIds()
+                .mapNotNull { openOrNull(it) }
+                .filter { region in it.regions }
+                .maxByOrNull { it.info.builtAt.orEmpty() }
+            val calendar = dataset?.let {
+                try {
+                    loadHolidayCalendar(it.db, region)
+                } catch (e: Exception) {
+                    Log.w(TAG, "loading holidays for $region failed: ${e.message}")
+                    null
+                }
             } ?: HolidayCalendar.UNKNOWN
             holidayCalendars[region] = calendar
             return calendar
@@ -222,7 +302,6 @@ class PoiDatabase(private val context: Context) {
     }
 
     private fun loadHolidayCalendar(database: SQLiteDatabase, region: String): HolidayCalendar? {
-        if (!hasOpeningHours) return null
         val (regionId, publicDays, schoolDays) = database.rawQuery(
             "SELECT id, ph_first_day, ph_last_day, sh_first_day, sh_last_day " +
                 "FROM regions WHERE code = ?",
@@ -248,6 +327,21 @@ class PoiDatabase(private val context: Context) {
             }
         }
         return RegionHolidayCalendar(publicDays, schoolDays, public, partial, school)
+    }
+
+    /**
+     * App versions before per-country datasets kept a Germany-only file at
+     * `filesDir/pois.db`; it becomes the `germany` dataset until the next
+     * update replaces it.
+     */
+    private fun migrateLegacyFile(filesDir: File) {
+        File(filesDir, "pois.db.gz.download").delete()
+        File(filesDir, "pois.db.staging").delete()
+        val legacy = File(filesDir, "pois.db")
+        if (!legacy.exists()) return
+        dir.mkdirs()
+        val target = fileOf(LEGACY_DATASET)
+        if (target.exists() || !legacy.renameTo(target)) legacy.delete()
     }
 
     private class RegionHolidayCalendar(
@@ -278,15 +372,28 @@ class PoiDatabase(private val context: Context) {
             public[date.toEpochDay()]
     }
 
-    private companion object {
-        const val TAG = "PoiDatabase"
+    companion object {
+        private const val TAG = "PoiDatabase"
+        private const val DIR = "pois"
+        private const val DB_SUFFIX = ".db"
+
+        /** The dataset the Germany-only file of older app versions becomes. */
+        const val LEGACY_DATASET = "germany"
 
         // holidays.kind values, shared with scripts/build_poi_db.py.
-        const val HOLIDAY_PUBLIC = 0
-        const val HOLIDAY_PUBLIC_PARTIAL = 1
-        const val HOLIDAY_SCHOOL = 2
+        private const val HOLIDAY_PUBLIC = 0
+        private const val HOLIDAY_PUBLIC_PARTIAL = 1
+        private const val HOLIDAY_SCHOOL = 2
 
-        fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
+        @Volatile
+        private var instance: PoiDatabase? = null
+
+        fun get(context: Context): PoiDatabase =
+            instance ?: synchronized(this) {
+                instance ?: PoiDatabase(context.applicationContext).also { instance = it }
+            }
+
+        private fun SQLiteDatabase.hasColumn(table: String, column: String): Boolean =
             rawQuery("PRAGMA table_info($table)", null).use { c ->
                 val nameIndex = c.getColumnIndexOrThrow("name")
                 while (c.moveToNext()) {
@@ -295,7 +402,7 @@ class PoiDatabase(private val context: Context) {
                 false
             }
 
-        fun android.database.Cursor.getLongRangeOrNull(first: Int, last: Int): LongRange? =
+        private fun android.database.Cursor.getLongRangeOrNull(first: Int, last: Int): LongRange? =
             if (isNull(first) || isNull(last)) null else getLong(first)..getLong(last)
     }
 }

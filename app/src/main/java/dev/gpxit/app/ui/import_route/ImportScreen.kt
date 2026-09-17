@@ -55,7 +55,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.gpxit.app.data.gpx.routeClimbDescentMeters
+import dev.gpxit.app.data.poi.PoiDataset
+import dev.gpxit.app.data.poi.PoiDatasetManager
 import dev.gpxit.app.data.gpx.splitRouteName
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun ImportScreen(
@@ -63,6 +66,7 @@ fun ImportScreen(
     homeStationName: String?,
     onNavigateToMap: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    poiDatasetState: StateFlow<PoiDatasetManager.State>,
     onNavigateToKomootBrowse: () -> Unit = {},
     onDownloadOfflineMap: () -> Unit = {},
     downloadState: dev.gpxit.app.GpxitDownloadState = dev.gpxit.app.GpxitDownloadState(),
@@ -74,6 +78,8 @@ fun ImportScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val routeInfo by viewModel.routeInfo.collectAsState()
+    val routePoiDatasets by viewModel.routePoiDatasets.collectAsState()
+    val poiDatasets by poiDatasetState.collectAsState()
     var showKomootAuthPrompt by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.needsKomootAuth) {
@@ -164,6 +170,9 @@ fun ImportScreen(
                         onBrowseKomoot = onNavigateToKomootBrowse,
                         onDelete = { showClearConfirm = true },
                         onReloadStations = onReloadStations,
+                        routePoiDatasets = routePoiDatasets,
+                        poiDatasets = poiDatasets,
+                        onDownloadPoiDatasets = viewModel::downloadPoiDatasets,
                     )
                 } else {
                     EmptyCard(
@@ -466,6 +475,9 @@ private fun LoadedCard(
     onBrowseKomoot: () -> Unit,
     onDelete: () -> Unit,
     onReloadStations: () -> Unit,
+    routePoiDatasets: List<PoiDataset>,
+    poiDatasets: PoiDatasetManager.State,
+    onDownloadPoiDatasets: (List<PoiDataset>) -> Unit,
 ) {
     val c = LocalHomePalette.current
     val (from, to) = remember(routeInfo.name) { splitRouteName(routeInfo.name) }
@@ -639,6 +651,13 @@ private fun LoadedCard(
             )
         }
 
+        // Countries on the route without offline POI data.
+        PoiDatasetBanner(
+            routeDatasets = routePoiDatasets,
+            state = poiDatasets,
+            onDownload = onDownloadPoiDatasets,
+        )
+
         // Stats row: distance / track points / stations.
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -767,6 +786,73 @@ private fun StationRetryBanner(
             }
         }
     }
+}
+
+@Composable
+private fun PoiDatasetBanner(
+    routeDatasets: List<PoiDataset>,
+    state: PoiDatasetManager.State,
+    onDownload: (List<PoiDataset>) -> Unit,
+) {
+    val c = LocalHomePalette.current
+    val missing = routeDatasets.filter { it.id !in state.selected }
+    val downloading = routeDatasets.filter { it.id in state.downloads }
+    if (missing.isEmpty() && downloading.isEmpty()) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Icon(
+            imageVector = DesignIcons.Layers,
+            contentDescription = null,
+            tint = c.accent,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = if (missing.isNotEmpty()) {
+                "No offline POIs for ${missing.joinToString(", ") { it.name }}"
+            } else {
+                "Downloading POIs for ${downloading.joinToString(", ") { it.name }}…"
+            },
+            color = c.cocoaInk,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+        if (missing.isEmpty()) {
+            CircularProgressIndicator(
+                color = c.accent,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp),
+            )
+        } else {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(c.accent)
+                    .clickable { onDownload(missing) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Get ${formatMegabytes(missing.sumOf { it.sizeBytes })}",
+                    color = c.accentDeepInk,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+private fun formatMegabytes(bytes: Long): String {
+    val mb = bytes / 1_000_000.0
+    return if (mb < 10) "%.1f MB".format(mb) else "%.0f MB".format(mb)
 }
 
 @Composable

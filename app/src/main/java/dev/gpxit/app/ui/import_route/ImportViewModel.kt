@@ -12,6 +12,8 @@ import dev.gpxit.app.data.komoot.KomootError
 import dev.gpxit.app.data.komoot.KomootGpxBuilder
 import dev.gpxit.app.data.komoot.KomootRef
 import dev.gpxit.app.data.poi.PoiDatabase
+import dev.gpxit.app.data.poi.PoiDataset
+import dev.gpxit.app.data.poi.PoiDatasetManager
 import dev.gpxit.app.data.prefs.PrefsRepository
 import dev.gpxit.app.data.transit.TransitRepository
 import dev.gpxit.app.domain.Poi
@@ -21,7 +23,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,7 +36,8 @@ import kotlinx.coroutines.withContext
 class ImportViewModel(application: Application) : AndroidViewModel(application) {
 
     private val transitRepository = TransitRepository(application)
-    private val poiDatabase = PoiDatabase(application)
+    private val poiDatabase = PoiDatabase.get(application)
+    private val poiDatasets = PoiDatasetManager.get(application)
     private val prefsRepository = PrefsRepository(application)
     private val routeStorage = RouteStorage(application)
     private val komootCredentialStore = KomootCredentialStore(application)
@@ -49,7 +57,28 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
     private val _routePois = MutableStateFlow<List<Poi>>(emptyList())
     val routePois: StateFlow<List<Poi>> = _routePois
 
+    /**
+     * The POI datasets (countries) the loaded route passes through, in
+     * route order — selected or not. Empty until the dataset index is known.
+     */
+    val routePoiDatasets: StateFlow<List<PoiDataset>> = combine(
+        _routeInfo,
+        poiDatasets.state.distinctUntilChanged { a, b ->
+            a.index === b.index && a.selected == b.selected && a.installed.keys == b.installed.keys
+        },
+    ) { route, state ->
+        if (route == null) emptyList() else poiDatasets.datasetsFor(route.points, state)
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     init {
+        // Datasets installed or removed: the route's POIs change with them.
+        viewModelScope.launch {
+            poiDatabase.version.drop(1).collectLatest {
+                if (!_uiState.value.isLoading) _routeInfo.value?.let { refreshPoisForRoute(it) }
+            }
+        }
         // Restore previously saved route on startup
         if (routeStorage.hasRoute()) {
             viewModelScope.launch {
@@ -92,31 +121,32 @@ class ImportViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Re-run the POI corridor query against the local DB for [route]
-     * and update the in-memory cache + on-disk JSON. No-op when the
-     * POI dataset isn't downloaded yet.
+     * Re-run the POI corridor query against the local datasets for [route]
+     * and update the in-memory cache + on-disk JSON.
      */
-    fun refreshPoisForRoute(route: RouteInfo) {
-        viewModelScope.launch {
-            if (!poiDatabase.isAvailable()) return@launch
-            val pois = try {
-                poiDatabase.queryForRoute(
-                    points = route.points,
-                    types = setOf(
-                        PoiType.GROCERY,
-                        PoiType.BAKERY,
-                        PoiType.WATER,
-                        PoiType.TOILET,
-                        PoiType.BIKE_REPAIR
-                    )
+    private suspend fun refreshPoisForRoute(route: RouteInfo) {
+        val pois = try {
+            poiDatabase.queryForRoute(
+                points = route.points,
+                types = setOf(
+                    PoiType.GROCERY,
+                    PoiType.BAKERY,
+                    PoiType.WATER,
+                    PoiType.TOILET,
+                    PoiType.BIKE_REPAIR
                 )
-            } catch (_: Exception) {
-                return@launch
-            }
-            withContext(Dispatchers.IO) { routeStorage.savePois(pois) }
-            _routePois.value = pois
-            _uiState.value = _uiState.value.copy(poiCount = pois.size)
+            )
+        } catch (_: Exception) {
+            return
         }
+        withContext(Dispatchers.IO) { routeStorage.savePois(pois) }
+        _routePois.value = pois
+        _uiState.value = _uiState.value.copy(poiCount = pois.size)
+    }
+
+    /** Download the POI datasets of [datasets] (e.g. the countries a route enters). */
+    fun downloadPoiDatasets(datasets: List<PoiDataset>) {
+        poiDatasets.select(datasets.map { it.id })
     }
 
     /**
