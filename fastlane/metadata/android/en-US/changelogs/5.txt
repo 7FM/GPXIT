@@ -1,0 +1,8 @@
+New in 0.3.0:
+- More transit sources: Rejseplanen, Resrobot and Traveline where Deutsche Bahn is weak, optionally Transitous
+- Opening hours of shops and bakeries on the map
+- Offline POI data for 37 countries and regions: pick yours in Settings, importing a route offers the ones it crosses
+- Fixed train delays shown far too high
+- Fixed duplicate POIs
+- Settings readable in dark mode
+- Screen reader labels for the map buttons
