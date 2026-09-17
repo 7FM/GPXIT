@@ -42,10 +42,18 @@ jobs:
         if: always()
         run: rm -f keystore.jks
 
+      - name: Release notes
+        # The F-Droid changelog of this versionCode, shown above GitHub's
+        # generated list of pull requests.
+        run: |
+          code=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts)
+          cp "fastlane/metadata/android/en-US/changelogs/$code.txt" release-notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             app-foss-release.apk
             app-full-release.apk
+          body_path: release-notes.md
           generate_release_notes: true
