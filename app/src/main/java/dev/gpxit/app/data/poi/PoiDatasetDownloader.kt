@@ -134,7 +134,12 @@ class PoiDatasetDownloader(
 
             onProgress(Progress(active = true, label = "Unpacking…"))
             GZIPInputStream(gzFile.inputStream()).use { gz ->
-                dbStaging.outputStream().use { out -> gz.copyTo(out) }
+                dbStaging.outputStream().use { out ->
+                    gz.copyTo(out)
+                    // On disk before it's renamed into place: after a power
+                    // loss the rename can survive while the data doesn't.
+                    out.fd.sync()
+                }
             }
             gzFile.delete()
             ensureActive()
