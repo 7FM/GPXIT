@@ -17,7 +17,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -86,7 +84,7 @@ internal fun PoiDatasetsSettings(
                 shape = RoundedCornerShape(999.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = palette.accent,
-                    contentColor = Color.White,
+                    contentColor = palette.onAccent,
                 ),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
                     horizontal = 12.dp, vertical = 0.dp,
@@ -170,10 +168,7 @@ private fun PoiDatasetList(
         placeholder = { Text("Search countries", fontSize = 13.sp) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFFFAF8F2),
-            unfocusedContainerColor = Color(0xFFFAF8F2),
-        ),
+        colors = settingsTextFieldColors(),
     )
     Spacer(modifier = Modifier.height(6.dp))
 
@@ -220,7 +215,7 @@ private fun PoiDatasetRow(
                 Text(text = dataset.name, color = palette.ink, fontSize = 13.sp)
                 Text(
                     text = detail,
-                    color = if (error != null && download == null) palette.accentDark else palette.inkSoft,
+                    color = if (error != null && download == null) palette.trackActive else palette.inkSoft,
                     fontSize = 11.sp,
                 )
             }
@@ -232,9 +227,15 @@ private fun PoiDatasetRow(
                 LinearProgressIndicator(
                     progress = { download.fraction },
                     modifier = Modifier.fillMaxWidth(),
+                    color = palette.accent,
+                    trackColor = palette.accentTint,
                 )
             } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = palette.accent,
+                    trackColor = palette.accentTint,
+                )
             }
         }
     }

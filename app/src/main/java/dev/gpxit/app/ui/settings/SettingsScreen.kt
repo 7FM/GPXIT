@@ -30,8 +30,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -183,10 +184,7 @@ fun SettingsScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFFAF8F2),
-                                unfocusedContainerColor = Color(0xFFFAF8F2),
-                            ),
+                            colors = settingsTextFieldColors(),
                         )
                         if (stationSuggestions.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(8.dp))
@@ -196,7 +194,7 @@ fun SettingsScreen(
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFFFAF8F2))
+                                        .background(palette.surfaceAlt)
                                         .border(1.dp, palette.line, RoundedCornerShape(10.dp))
                                         .clickable {
                                             onSetHomeStation(s)
@@ -556,7 +554,7 @@ private fun AccordionGroup(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (isOpen) Color.White else palette.accentDark,
+                    tint = if (isOpen) palette.onAccent else palette.accentDark,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -664,7 +662,7 @@ private fun SliderClassic(
         ) {
             Text(
                 text = "$clamped$unit",
-                color = Color.White,
+                color = palette.surface,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 13.sp,
@@ -686,7 +684,7 @@ private fun SliderClassic(
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFFE0DDD2))
+                    .background(palette.handle)
             )
             // Accent-filled portion from start to the thumb.
             Box(
@@ -793,6 +791,29 @@ private fun TransitSourcesSettings(
     }
 }
 
+/**
+ * Text field colours from the palette. Material's own come from the
+ * wallpaper-based scheme and fixed containers ignore the dark theme; both
+ * clash with the palette's text colours.
+ */
+@Composable
+internal fun settingsTextFieldColors(): TextFieldColors {
+    val palette = LocalMapPalette.current
+    return OutlinedTextFieldDefaults.colors(
+        focusedTextColor = palette.ink,
+        unfocusedTextColor = palette.ink,
+        focusedContainerColor = palette.surfaceAlt,
+        unfocusedContainerColor = palette.surfaceAlt,
+        cursorColor = palette.accent,
+        focusedBorderColor = palette.accent,
+        unfocusedBorderColor = palette.inkLight,
+        focusedLabelColor = palette.accent,
+        unfocusedLabelColor = palette.inkSoft,
+        focusedPlaceholderColor = palette.inkLight,
+        unfocusedPlaceholderColor = palette.inkLight,
+    )
+}
+
 /** Pill toggle matching the design's `<Toggle>` component. */
 @Composable
 internal fun SettingsToggle(
@@ -808,7 +829,7 @@ internal fun SettingsToggle(
         modifier = Modifier
             .size(width = w, height = h)
             .clip(RoundedCornerShape(h / 2))
-            .background(if (on) palette.accent else Color(0xFFD6D4CC))
+            .background(if (on) palette.accent else palette.handle)
             .clickable { onChange(!on) },
         contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
@@ -898,6 +919,7 @@ private fun KomootAccountSection(
             onValueChange = onEmailChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            colors = settingsTextFieldColors(),
             label = { Text("Email") },
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
@@ -911,6 +933,7 @@ private fun KomootAccountSection(
             onValueChange = onPasswordChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            colors = settingsTextFieldColors(),
             label = { Text("Password") },
             visualTransformation = if (passwordVisible) {
                 androidx.compose.ui.text.input.VisualTransformation.None
@@ -941,6 +964,7 @@ private fun KomootAccountSection(
             onValueChange = onUserIdChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            colors = settingsTextFieldColors(),
             label = { Text("User ID (for Browse)") },
             placeholder = { Text("e.g. 12345678 or komoot.com/user/12345678") },
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -1001,7 +1025,7 @@ private fun KomootAccountSection(
             ) {
                 Text(
                     text = "Sign out",
-                    color = Color(0xFFC0392B),
+                    color = palette.trackActive,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1011,7 +1035,7 @@ private fun KomootAccountSection(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = state.statusMessage,
-                color = if (state.isError) Color(0xFFC0392B) else palette.inkSoft,
+                color = if (state.isError) palette.trackActive else palette.inkSoft,
                 fontSize = 12.sp,
             )
         }
